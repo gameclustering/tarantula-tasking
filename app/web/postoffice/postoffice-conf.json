@@ -1,0 +1,8 @@
+{
+    "LogTruncated":true,
+	"GroupName" :"postoffice",
+	"NodeName" :   "postoffice.5",
+	"NodeId"     :   5,
+	"ClusterSeed": ["192.168.1.11", "192.168.1.3"],
+	"SqlEnabled":false
+}

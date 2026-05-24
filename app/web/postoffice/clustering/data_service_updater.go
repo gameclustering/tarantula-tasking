@@ -1,0 +1,229 @@
+package clustering
+
+import (
+	"encoding/json"
+	"fmt"
+	"slices"
+	"strings"
+
+	"gameclustering.com/internal/core"
+	"gameclustering.com/internal/protocol"
+)
+
+type RingUpdate struct {
+	State int
+	Nodes []core.Node
+}
+
+const (
+	RECEIVER_START  uint32 = 1
+	TOPIC_REGISTER  uint32 = 2
+	RECEIVER_REMOVE uint32 = 3
+	RECEIVER_END    uint32 = 4
+	TASK_REGISTER   uint32 = 5
+
+	TOPIC_LIST uint32 = 6
+	TASK_LIST  uint32 = 7
+
+	TRANS_SUB_PREFIX string = "_t_"
+)
+
+type ReceiverAsync struct {
+	Rev  chan *protocol.Mail
+	Q    chan string
+	Subs map[string]core.Subscription
+}
+
+type TopicRequest struct {
+	Opt    uint32
+	NodeId string
+	Tag    string
+	Name   string
+
+	Async chan ReceiverAsync
+	Subs  chan []core.Subscription
+}
+
+func (m *DataServiceProvider) balanceOnNodeAdded(added RingUpdate) {
+
+	if m.backRing.nodeNum == 0 {
+		m.backRing.nodes = append(m.backRing.nodes, added.Nodes...)
+		slices.SortFunc(m.backRing.nodes, cmp)
+		m.backRing.nodeNum++
+		return
+	}
+	slices.SortFunc(added.Nodes, cmp)
+	ringSync := core.RingSync{Ranges: make([]core.RingRange, 0)}
+	for _, n := range added.Nodes {
+		if !m.Mll.localNode(n) { //skip node initial add call
+			ringRange := m.backRing.rangeOfRing(n.RingToken)
+			if m.Mll.localNode(ringRange[1]) {
+				ringSync.Remote = ringRange[1].RpcEndpoint
+				ringSync.Ranges = append(ringSync.Ranges, core.RingRange{From: ringRange[0].RingToken, To: n.RingToken})
+				core.AppLog.Debug().Msgf("push data key hash >= %d and < %d to remote node %s", ringRange[0].RingToken, n.RingToken, n.IP)
+			}
+		}
+		m.backRing.nodes = append(m.backRing.nodes, n)
+		slices.SortFunc(m.backRing.nodes, cmp)
+	}
+	m.backRing.nodeNum++
+	if len(ringSync.Ranges) == 0 {
+		return
+	}
+	m.Mll.MRequest <- core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added.Nodes[0].IP}
+	m.subscriptions.lookup(func(sub core.Subscription) {
+		if sub.Endpoint == m.rpcEndpoint {
+			m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Address: added.Nodes[0].IP, Source: core.RingSync{Sub: sub}}
+		}
+	})
+}
+
+func (m *DataServiceProvider) balanceOnNodeRemoved(removed RingUpdate) {
+
+	for _, n := range removed.Nodes {
+		m.backRing.nodes = slices.DeleteFunc(m.backRing.nodes, func(d core.Node) bool {
+			return d.IP == n.IP
+		})
+	}
+	slices.SortFunc(m.backRing.nodes, cmp)
+	m.backRing.nodeNum--
+}
+
+func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
+	if sub.Type == core.TRANS_MAIL && !strings.HasPrefix(sub.Topic, TRANS_SUB_PREFIX) {
+		sub.Topic = fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, sub.Topic)
+	}
+	if sub.Deleting {
+		m.subscriptions.del(sub)
+		listener, ok := m.listeners[sub.NodeId]
+		if !ok {
+			return
+		}
+		delete(listener.Subs, sub.Topic)
+		return
+	}
+	listener, ok := m.listeners[sub.NodeId]
+	if !ok {
+		listener = ReceiverAsync{Rev: make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE), Q: make(chan string, 2), Subs: make(map[string]core.Subscription)}
+		m.listeners[sub.NodeId] = listener
+		m.listenerPool = append(m.listenerPool, sub.NodeId)
+	}
+	m.subscriptions.add(sub)
+	listener.Subs[sub.Topic] = sub
+}
+
+func (m *DataServiceProvider) RingUpdated() {
+	running := true
+	for running {
+		select {
+		case ringUpdate := <-m.RNode:
+			switch ringUpdate.State {
+			case NODE_STATE_SHUTDOWN:
+				running = false
+			case NODE_STATE_LIVE:
+				m.balanceOnNodeAdded(ringUpdate)
+			case NODE_STATE_DEAD:
+				m.balanceOnNodeRemoved(ringUpdate)
+			}
+
+		case sync := <-m.RSync:
+			var ds core.RingSync
+			err := json.Unmarshal(sync, &ds)
+			if err != nil {
+				core.AppLog.Warn().Msgf("cannot parse remote data from %s", string(sync))
+			} else {
+				if len(ds.Ranges) > 0 {
+					m.DWait.Add(SET_OPERATOR_NUM)
+					for range SET_OPERATOR_NUM {
+						m.DSet <- SetData{Opt: core.SET_OPT_RECOVER}
+					}
+					pz := SET_OPERATOR_NUM
+					for _, p := range ds.Ranges {
+						ps := core.RingSync{Remote: ds.Remote, Ranges: []core.RingRange{p}}
+						m.DPull <- ps
+						pz--
+					}
+					for range pz {
+						m.DPull <- core.RingSync{Remote: ds.Remote, Ranges: []core.RingRange{}}
+					}
+				} else {
+					m.registerSubscription(ds.Sub)
+				}
+			}
+		case req := <-m.DRequest:
+			switch req.Opt {
+			case RECEIVER_START:
+				rev, ok := m.listeners[req.Name]
+				if !ok {
+					rev = ReceiverAsync{Rev: make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE), Q: make(chan string, 2), Subs: make(map[string]core.Subscription)}
+					m.listeners[req.Name] = rev
+					m.listenerPool = append(m.listenerPool, req.Name)
+				}
+				req.Async <- rev
+			case RECEIVER_END:
+				rev, ok := m.listeners[req.Name]
+				if ok {
+					rev.Q <- req.Name
+				}
+
+			case RECEIVER_REMOVE:
+				delete(m.listeners, req.Name)
+			case TOPIC_REGISTER:
+				req.Subs <- m.subscriptions.topic(req)
+			case TASK_REGISTER:
+				req.Name = fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, req.Name)
+				req.Subs <- m.subscriptions.topic(req)
+			case TOPIC_LIST:
+				req.Subs <- m.subscriptions.list(false)
+			case TASK_LIST:
+				req.Subs <- m.subscriptions.list(true)
+			}
+		case msg := <-m.DMessager:
+			switch msg.Opt {
+			case core.TOPIC_MAIL:
+				for _, ch := range m.listeners {
+					_, subed := ch.Subs[msg.Topic.Name]
+					if subed {
+						ch.Rev <- msg
+					}
+				}
+			case core.TRANS_MAIL:
+				tn := fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, msg.Transaction.Meta.Name)
+				lk := ""
+				for {
+					if len(m.listenerPool) == 0 {
+						break
+					}
+					nk := m.listenerPool[0]
+					if lk == nk {
+						break
+					}
+					nc, exists := m.listeners[nk]
+					if !exists {
+						m.listenerPool = m.listenerPool[1:] //remove key if disconnected
+						continue
+					}
+					_, subed := nc.Subs[tn]
+					if subed {
+						nc.Rev <- msg
+						m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
+						break
+					}
+					//mark last one to break loop if fullly iterated
+					lk = nk
+					m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
+				}
+			}
+		}
+
+	}
+	//shutdown server
+	for range SET_OPERATOR_NUM {
+		m.DSet <- SetData{Opt: core.SET_OPT_CLOSE}
+	}
+	close(m.DSet)
+	close(m.DPull)
+	m.server.Stop()
+	m.Local.Close()
+	core.AppLog.Info().Msg("local data service provider has stopped")
+}

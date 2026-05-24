@@ -1,0 +1,8 @@
+{
+	"LogTruncated":true,
+    "GroupName" :"admin",
+	"NodeName" :   "admin.1",
+	"NodeId"     :   1,
+	"SqlEnabled":true
+
+}

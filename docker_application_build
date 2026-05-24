@@ -1,0 +1,32 @@
+# Build
+FROM golang:1.26-alpine3.23 AS builder
+ARG app
+
+WORKDIR /build
+COPY . .
+RUN echo building app : ${app}
+RUN go -C app/web/${app} build -o main 
+
+# Alpine Linux 
+FROM alpine:3.23
+#RUN apk add --no-cache openssh-client
+#RUN apk add --no-cache git
+ARG app
+RUN addgroup -S tarantula && adduser -S tarantula -G tarantula
+
+RUN mkdir /home/tarantula/${app}
+RUN mkdir /home/tarantula/.ssh
+RUN touch /home/tarantula/.ssh/known_hosts
+ 
+WORKDIR /home/tarantula
+
+# Application Install
+WORKDIR /home/tarantula/bin
+RUN echo installing app : ${app}
+COPY --from=builder /build/app/web/${app}/main .
+COPY --from=builder /build/app/web/${app}/*.json .
+
+RUN chown -R tarantula:tarantula /home/tarantula 
+
+USER tarantula
+ENTRYPOINT ["./main"]

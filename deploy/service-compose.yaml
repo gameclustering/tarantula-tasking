@@ -1,0 +1,63 @@
+name: tarantula-service
+services:
+  sql_db:
+    image: postgres:16.2-alpine
+    container_name: postgresql
+    hostname: postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tarantula
+    ports:
+      - "5432:5432"
+    networks:
+      - tarantula-service-net      
+    volumes:
+      - volume_postgres:/var/lib/postgresql/data
+
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault
+    restart: unless-stopped
+    cap_add:
+          - IPC_LOCK
+    environment:
+      VAULT_ROOT_TOKEN_ID: tarantula
+      VAULT_LOCAL_CONFIG: '{"ui":"true","listener":{"tcp": {"address": "0.0.0.0:8200", "tls_disable": 1}},"backend": {"file": {"path": "/vault/file"}}, "default_lease_ttl": "168h", "max_lease_ttl": "720h","disable_mlock":"true"}'
+      SKIP_SETCAP: true
+      SKIP_CHOWN: true
+    ports:
+      - "8200:8200" 
+    networks:
+      - tarantula-service-net  
+    volumes:
+      - volume_vault:/vault/config
+      - volume_vault:/vault/file
+    command: server
+
+  web:
+    restart: unless-stopped
+    container_name: web
+    hostname: web
+    image: tarantula.caddy:v1.0
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - vault
+    networks:
+      - tarantula-service-net
+    volumes:
+      - volume_caddy_config:/config
+      - volume_caddy_data:/data    
+      
+networks:
+  tarantula-service-net:
+    external: true
+
+volumes:
+  volume_postgres:
+  volume_vault:
+  volume_caddy_data: 
+  volume_caddy_config:

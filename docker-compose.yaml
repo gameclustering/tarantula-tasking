@@ -1,0 +1,60 @@
+name: tarantula-app
+services:
+  postoffice:
+    stop_grace_period: 20s
+    restart: unless-stopped
+    container_name: postoffice
+    hostname: postoffice
+    image: tarantula.postoffice:${VERSION}
+    network_mode: "host"
+    volumes:
+      - volume_postoffice:/home/tarantula/postoffice
+    env_file:
+      - .env  
+  cloud:
+    stop_grace_period: 20s
+    restart: unless-stopped
+    container_name: cloud
+    hostname: cloud
+    image: tarantula.cloud:${VERSION}
+    volumes:
+      - volume_cloud:/home/tarantula/cloud
+    depends_on:
+      - postoffice     
+    networks:
+      - tarantula-app-net
+    env_file:
+      - .env 
+  admin:
+    stop_grace_period: 20s
+    restart: unless-stopped
+    container_name: admin
+    hostname: admin
+    image: tarantula.admin:${VERSION}
+    volumes:
+      - volume_admin:/home/tarantula/admin  
+    depends_on:
+      - cloud
+    networks:
+      - tarantula-app-net
+    env_file:
+      - .env  
+  web:
+    restart: unless-stopped
+    container_name: web
+    hostname: web
+    image: tarantula.nginx:${VERSION}
+    ports:
+      - "80:80"
+    depends_on:
+      - admin
+    networks:
+      - tarantula-app-net
+
+networks:
+  tarantula-app-net:
+    external: true
+volumes:
+  volume_postoffice:
+  volume_cloud:
+  volume_admin:

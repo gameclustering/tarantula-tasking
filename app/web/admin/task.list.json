@@ -1,0 +1,27 @@
+{
+    "Tasks":[
+        {
+            "Name":"Cloud","ScopeSequence":5,"Icon":"cloud",
+            "Jobs":[
+                {"Name":"TokenRing","Type":100},
+                {"Name":"KeyRing","Type":101},
+                {"Name":"Subscription(topic)","Type":102},
+                {"Name":"Subscription(task)","Type":103},
+                {"Name":"Reset","Type":105}, 
+                {"Name":"Create","Type":106},
+                {"Name":"Update","Type":107},
+                {"Name":"Delete","Type":108}                
+            ]        
+        },
+        {
+            "Name":"AdminTool","ScopeSequence":0,"Icon":"admin_panel_settings",
+            "Jobs":[
+                {"Name":"CreateAccessKey","Type":200},
+                {"Name":"ChangePassword","Type":201},
+                {"Name":"SendTopic","Type":300},
+                {"Name":"QueryTopic","Type":301},
+                {"Name":"QueryObject","Type":301}
+            ]        
+        }
+    ]
+}
