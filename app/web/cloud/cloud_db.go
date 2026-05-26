@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"gameclustering.com/internal/protocol"
+	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -27,6 +30,38 @@ func (s *CloudService) createSchema() error {
 		return err
 	}
 	return nil
+}
+
+func (s *CloudService) queryByTaskId(taskId uint64) ([]*protocol.Meta, error) {
+	results := make([]*protocol.Meta, 0)
+	err := s.Sql.Query(func(row pgx.Rows) error {
+		var (
+			id            int64
+			taskIdVal     uint64
+			jobId         uint64
+			transactionId uint64
+			nodeId        string
+			tag           string
+			name          string
+			state         uint32
+			timeCommited  time.Time
+		)
+		if err := row.Scan(&id, &taskIdVal, &jobId, &transactionId, &nodeId, &tag, &name, &state, &timeCommited); err != nil {
+			return err
+		}
+		results = append(results, &protocol.Meta{
+			TaskId: taskIdVal,
+			JobId:  jobId,
+			Id:     transactionId,
+			NodeId: nodeId,
+			Tag:    tag,
+			Name:   name,
+			State:  state,
+			Time:   timestamppb.New(timeCommited),
+		})
+		return nil
+	}, SELECT_TASK_META_WITH_TASK_ID, taskId)
+	return results, err
 }
 
 func (s *CloudService) insert(meta *protocol.Meta) error {

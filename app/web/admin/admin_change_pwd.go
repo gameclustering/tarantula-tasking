@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -31,6 +32,11 @@ func (s *AdminChangePwd) Request(rs core.OnSession, w http.ResponseWriter, r *ht
 	w.WriteHeader(http.StatusOK)
 	if err != nil {
 		session := core.OnSession{Successful: false, Message: err.Error()}
+		w.Write(util.ToJson(session))
+		return
+	}
+	if err := s.Authenticator().ValidatePassword(cp.OldPwd, login.Password); err != nil {
+		session := core.OnSession{Successful: false, Message: "invalid current password"}
 		w.Write(util.ToJson(session))
 		return
 	}

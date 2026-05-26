@@ -102,7 +102,7 @@ func (p *RpcConnPool) Release() {
 	defer p.Unlock()
 	for _, c := range p.pool {
 		dsp := protocol.NewPostofficeServiceClient(c.Conn)
-		resp, err := dsp.Disconnect(context.Background(), &protocol.Topic{Tag: p.Tag, NodeId: p.NodeId})
+		resp, err := dsp.Disconnect(p.setup(context.Background()), &protocol.Topic{Tag: p.Tag, NodeId: p.NodeId})
 		if err != nil {
 			continue
 		}
