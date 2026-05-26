@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"time"
 
@@ -38,6 +39,8 @@ func (s *CloudService) Start(f core.Env) error {
 	s.Cluster().Register("update", NewVMObejctUpdate(s))
 	s.Cluster().Register("create", NewVMObejctCreate(s))
 	s.Cluster().Register("check", NewRepositoryObejctCheck(s))
+
+	http.Handle("/cloud/meta/task/{taskId}", bootstrap.Logging(&CloudMetaGet{CloudService: s}))
 
 	s.Cluster().Register("updatex", &protocol.TccTransationListener{Reserve: func(e *protocol.Transaction) error {
 		key, err := s.Cluster().AuthKey("gcp")
