@@ -18,7 +18,6 @@ import (
 const (
 	PULL_BATCH_SIZE int = 100
 
-	KEY_NAME string = "./key"
 )
 
 type DataServiceProvider struct {
@@ -139,7 +138,7 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	if err != nil {
 		panic(err)
 	}
-	creds, err := credentials.NewServerTLSFromFile(core.CERT_NAME, KEY_NAME)
+	creds, err := credentials.NewServerTLSFromFile(core.CERT_NAME, core.KEY_NAME)
 	if err != nil {
 		panic(err.Error())
 	}
