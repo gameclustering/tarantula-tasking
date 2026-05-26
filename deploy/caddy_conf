@@ -1,5 +1,0 @@
-://gameclustering.com {
-    
-    reverse_proxy  vault:8200
-
-}

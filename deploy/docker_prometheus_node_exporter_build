@@ -1,5 +1,0 @@
-FROM alpine:3.23
-
-RUN apk add --no-cache prometheus-node-exporter
-
-ENTRYPOINT ["node_exporter", "--web.listen-address=:9100"]
