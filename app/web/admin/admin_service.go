@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
@@ -74,4 +75,10 @@ func (s *AdminService) Start(f core.Env) error {
 
 	core.AppLog.Info().Msgf("Admin service started %s\n", f.HttpBinding)
 	return nil
+}
+
+func (s *AdminService) Shutdown() {
+	s.Cluster().Unregister(event.TASK_TOPIC_NAME)
+	time.Sleep(1 * time.Second)
+	s.AppManager.Shutdown()
 }
