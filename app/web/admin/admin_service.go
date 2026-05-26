@@ -78,7 +78,7 @@ func (s *AdminService) Start(f core.Env) error {
 }
 
 func (s *AdminService) Shutdown() {
-	s.Cluster().Unregister(event.TASK_TOPIC_NAME)
+	s.Cluster().Unsubscribe(event.TASK_TOPIC_NAME)
 	time.Sleep(1 * time.Second)
 	s.AppManager.Shutdown()
 }
