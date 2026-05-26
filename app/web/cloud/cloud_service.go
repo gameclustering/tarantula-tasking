@@ -103,6 +103,7 @@ func (s *CloudService) Shutdown() {
 	s.Cluster().Unregister("create")
 	s.Cluster().Unregister("update")
 	s.Cluster().Unregister("updatex")
+	s.Cluster().Unsubscribe(event.MESSAGE_TOPIC_NAME)
 	time.Sleep(1 * time.Second)
 	s.AppManager.Shutdown()
 }
