@@ -18,7 +18,7 @@ type PostofficeService struct {
 }
 
 func (s *PostofficeService) Config() string {
-	return "/postoffice-conf.json"
+	return "./postoffice-conf.json"
 	//return "/etc/tarantula/postoffice-conf.json"
 }
 
