@@ -11,7 +11,6 @@ import (
 	"gameclustering.com/postoffice/clustering"
 )
 
-
 type PostofficeService struct {
 	bootstrap.AppManager
 	mm      *clustering.MemberlistManager
@@ -19,7 +18,8 @@ type PostofficeService struct {
 }
 
 func (s *PostofficeService) Config() string {
-	return "./postoffice-conf.json"
+	return "/postoffice-conf.json"
+	//return "/etc/tarantula/postoffice-conf.json"
 }
 
 func (s *PostofficeService) Start(env core.Env) error {

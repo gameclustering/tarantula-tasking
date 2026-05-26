@@ -35,9 +35,9 @@ func (c *DataServiceProvider) runCreate(set *protocol.Request) (*protocol.Respon
 		retry.Suc = true
 		slaves := nodes[1:]
 		for _, slave := range slaves {
-			resp, err := c.clientCreate(&slave, set)
-			if err != nil || !resp.Successful {
-				core.AppLog.Debug().Msgf("error on slave %s", resp.Message)
+			_, err := c.clientCreate(&slave, set)
+			if err != nil {
+				core.AppLog.Debug().Msgf("error on slave %s", err.Error())
 			}
 		}
 		break
