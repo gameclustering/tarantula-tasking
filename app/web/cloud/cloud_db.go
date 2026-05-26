@@ -33,7 +33,7 @@ func (s *CloudService) createSchema() error {
 }
 
 func (s *CloudService) queryByTaskId(taskId uint64) ([]*protocol.Meta, error) {
-	var results []*protocol.Meta
+	results := make([]*protocol.Meta, 0)
 	err := s.Sql.Query(func(row pgx.Rows) error {
 		var (
 			id            int64
