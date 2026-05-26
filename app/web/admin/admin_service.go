@@ -20,7 +20,7 @@ type AdminService struct {
 }
 
 func (s *AdminService) Config() string {
-	return "./admin-conf.json"
+	return "/etc/tarantula/admin-conf.json"
 }
 
 func (s *AdminService) Start(f core.Env) error {

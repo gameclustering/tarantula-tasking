@@ -18,11 +18,9 @@ type CloudService struct {
 }
 
 func (s *CloudService) Config() string {
-	return "./cloud-conf.json"
-	//return "/etc/tarantula/cloud-conf.json"
+	return "/etc/tarantula/cloud-conf.json"
 }
 
-// https://dev.to/marrouchi/the-challenge-about-ssl-in-docker-containers-no-one-talks-about-32gh
 func (s *CloudService) Start(f core.Env) error {
 	s.AppManager.Start(f)
 	s.createSchema()

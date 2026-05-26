@@ -12,6 +12,9 @@ FROM alpine:3.23
 #RUN apk add --no-cache openssh-client
 #RUN apk add --no-cache git
 ARG app
+RUN mkdir /etc/tarantula
+COPY app/web/${app}/${app}-conf.json /etc/tarantula/${app}-conf.json
+
 RUN addgroup -S tarantula && adduser -S tarantula -G tarantula
 
 RUN mkdir /home/tarantula/${app}
