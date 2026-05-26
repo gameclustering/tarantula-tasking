@@ -33,8 +33,7 @@ func (c *DataServiceProvider) auditCall(ctx context.Context, req any, info *grpc
 	}
 	_, err := c.auth.ValidateTicket(ticks[0])
 	if err != nil {
-		//return nil, status.Error(codes.Unauthenticated, "invalid ticket")
-		core.AppLog.Debug().Msgf("invlid ticket %s", err.Error())
+		return nil, status.Error(codes.Unauthenticated, "invalid ticket")
 	}
 	return handler(ctx, req)
 }
