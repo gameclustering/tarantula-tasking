@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     container_name: postoffice
     hostname: postoffice
-    image: tarantula.postoffice:${VERSION}
+    image: ${PREFIX}/tarantula.postoffice:${VERSION}
     network_mode: "host"
     volumes:
       - volume_postoffice:/home/tarantula/postoffice
@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
     container_name: cloud
     hostname: cloud
-    image: tarantula.cloud:${VERSION}
+    image: ${PREFIX}/tarantula.cloud:${VERSION}
     volumes:
       - volume_cloud:/home/tarantula/cloud
     depends_on:
@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
     container_name: admin
     hostname: admin
-    image: tarantula.admin:${VERSION}
+    image: ${PREFIX}/tarantula.admin:${VERSION}
     volumes:
       - volume_admin:/home/tarantula/admin  
     depends_on:
@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
     container_name: web
     hostname: web
-    image: tarantula.nginx:${VERSION}
+    image: ${PREFIX}/tarantula.nginx:${VERSION}
     ports:
       - "80:80"
     depends_on:
