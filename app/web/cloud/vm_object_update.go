@@ -44,7 +44,7 @@ func (v *VMObjectUpdate) updateGcp(vm *protocol.VMObject, meta *protocol.Meta) e
 	if err != nil {
 		return fmt.Errorf("gcp auth key: %w", err)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: vm.ProjectId, Zone: vm.Zone}
+	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: gcpKey.Gcp.Zone}
 	if err := gcp.Auth(); err != nil {
 		return fmt.Errorf("gcp auth: %w", err)
 	}
@@ -60,22 +60,22 @@ func (v *VMObjectUpdate) updateGcp(vm *protocol.VMObject, meta *protocol.Meta) e
 	}
 	defer os.Remove(keyFile)
 
-	for i := uint32(1); i <= vm.Count; i++ {
-		name := fmt.Sprintf("%s-%02d", vm.Prefix, i)
-		if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, name, keyFile); err != nil {
+	for i := uint32(1); i <= vm.NumberOfInstances; i++ {
+		name := fmt.Sprintf("%s-%02d", gcpKey.Gcp.Prefix, i)
+		if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile); err != nil {
 			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
 		}
 	}
 	return v.insert(meta)
 }
 
-func (v *VMObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, name string, keyFile string) error {
+func (v *VMObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user string, name string, keyFile string) error {
 	ins, err := gcp.Get(name)
 	if err != nil {
 		return fmt.Errorf("get instance: %w", err)
 	}
 	natIP := ins.GetNetworkInterfaces()[0].AccessConfigs[0].GetNatIP()
-	ssh := util.SshClient{Host: natIP, User: "yinghu_lu", PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
+	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
 	if err := ssh.WithKey(); err != nil {
 		return fmt.Errorf("ssh connect: %w", err)
 	}

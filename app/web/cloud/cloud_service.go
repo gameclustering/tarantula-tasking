@@ -34,9 +34,11 @@ func (s *CloudService) Start(f core.Env) error {
 			core.AppLog.Debug().Msg("wrong type")
 		}
 	}})
-	s.Cluster().Register("update", NewVMObjectUpdate(s))
-	s.Cluster().Register("create", NewVMObejctCreate(s))
 	s.Cluster().Register("check", NewRepositoryObejctCheck(s))
+	s.Cluster().Register("create", NewVMObejctCreate(s))
+	s.Cluster().Register("update", NewVMObjectUpdate(s))
+	s.Cluster().Register("build", NewVMObjectBuild(s))
+	s.Cluster().Register("deploy", NewVMObjectDeploy(s))
 
 	http.Handle("/cloud/meta/task/{taskId}", bootstrap.Logging(&CloudMetaGet{CloudService: s}))
 
@@ -48,6 +50,8 @@ func (s *CloudService) Shutdown() {
 	s.Cluster().Unregister("check")
 	s.Cluster().Unregister("create")
 	s.Cluster().Unregister("update")
+	s.Cluster().Unregister("build")
+	s.Cluster().Unregister("deploy")
 	s.Cluster().Unsubscribe(event.MESSAGE_TOPIC_NAME)
 	time.Sleep(1 * time.Second)
 	s.AppManager.Shutdown()

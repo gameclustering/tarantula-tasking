@@ -90,9 +90,19 @@ func (a *VaultClient) toSqlKey(kv *vault.KVSecret) *protocol.AuthKey {
 func (a *VaultClient) toGcpKey(kv *vault.KVSecret) *protocol.AuthKey {
 	iam, _ := kv.Data["iam"].(string)
 	ssh, _ := kv.Data["ssh"].(string)
+	projectId, _ := kv.Data["projectId"].(string)
+	zone, _ := kv.Data["zone"].(string)
+	prefix, _ := kv.Data["prefix"].(string)
+	instanceType, _ := kv.Data["type"].(string)
+	user, _ := kv.Data["user"].(string)
 	ak := protocol.AuthKey{Gcp: &protocol.GcpAccess{}}
 	ak.Gcp.Iam = iam
 	ak.Gcp.Ssh = ssh
+	ak.Gcp.ProjectId = projectId
+	ak.Gcp.Zone = zone
+	ak.Gcp.Prefix = prefix
+	ak.Gcp.Type = instanceType
+	ak.Gcp.User = user
 	return &ak
 }
 
