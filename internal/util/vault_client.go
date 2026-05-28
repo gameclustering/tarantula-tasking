@@ -56,6 +56,10 @@ func (v *VaultClient) Load(mountPath string, path string) (*protocol.AuthKey, er
 		return v.toSqlKey(kv), nil
 	case "gcp":
 		return v.toGcpKey(kv), nil
+	case "aws":
+		return v.toAwsKey(kv), nil
+	case "az":
+		return v.toAzKey(kv), nil
 	case "git":
 		return v.toGitKey(kv), nil
 	}
@@ -103,6 +107,46 @@ func (a *VaultClient) toGcpKey(kv *vault.KVSecret) *protocol.AuthKey {
 	ak.Gcp.Prefix = prefix
 	ak.Gcp.Type = instanceType
 	ak.Gcp.User = user
+	return &ak
+}
+
+func (a *VaultClient) toAwsKey(kv *vault.KVSecret) *protocol.AuthKey {
+	accessKeyId, _ := kv.Data["accessKeyId"].(string)
+	secretAccessKey, _ := kv.Data["secretAccessKey"].(string)
+	region, _ := kv.Data["region"].(string)
+	prefix, _ := kv.Data["prefix"].(string)
+	instanceType, _ := kv.Data["type"].(string)
+	user, _ := kv.Data["user"].(string)
+	ak := protocol.AuthKey{Aws: &protocol.AwsAccess{}}
+	ak.Aws.AccessKeyId = accessKeyId
+	ak.Aws.SecretAccessKey = secretAccessKey
+	ak.Aws.Region = region
+	ak.Aws.Prefix = prefix
+	ak.Aws.Type = instanceType
+	ak.Aws.User = user
+	return &ak
+}
+
+func (a *VaultClient) toAzKey(kv *vault.KVSecret) *protocol.AuthKey {
+	tenantId, _ := kv.Data["tenantId"].(string)
+	clientId, _ := kv.Data["clientId"].(string)
+	clientSecret, _ := kv.Data["clientSecret"].(string)
+	subscriptionId, _ := kv.Data["subscriptionId"].(string)
+	resourceGroup, _ := kv.Data["resourceGroup"].(string)
+	region, _ := kv.Data["region"].(string)
+	prefix, _ := kv.Data["prefix"].(string)
+	instanceType, _ := kv.Data["type"].(string)
+	user, _ := kv.Data["user"].(string)
+	ak := protocol.AuthKey{Az: &protocol.AzAccess{}}
+	ak.Az.TenantId = tenantId
+	ak.Az.ClientId = clientId
+	ak.Az.ClientSecret = clientSecret
+	ak.Az.SubscriptionId = subscriptionId
+	ak.Az.ResourceGroup = resourceGroup
+	ak.Az.Region = region
+	ak.Az.Prefix = prefix
+	ak.Az.Type = instanceType
+	ak.Az.User = user
 	return &ak
 }
 

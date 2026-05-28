@@ -32,6 +32,8 @@ type AuthKey struct {
 	Sql           *SqlAccess             `protobuf:"bytes,7,opt,name=sql,proto3" json:"sql,omitempty"`
 	Key           string                 `protobuf:"bytes,8,opt,name=key,proto3" json:"key,omitempty"`
 	Cert          string                 `protobuf:"bytes,9,opt,name=cert,proto3" json:"cert,omitempty"`
+	Aws           *AwsAccess             `protobuf:"bytes,10,opt,name=aws,proto3" json:"aws,omitempty"`
+	Az            *AzAccess              `protobuf:"bytes,11,opt,name=az,proto3" json:"az,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -129,11 +131,25 @@ func (x *AuthKey) GetCert() string {
 	return ""
 }
 
+func (x *AuthKey) GetAws() *AwsAccess {
+	if x != nil {
+		return x.Aws
+	}
+	return nil
+}
+
+func (x *AuthKey) GetAz() *AzAccess {
+	if x != nil {
+		return x.Az
+	}
+	return nil
+}
+
 var File_auth_key_proto protoreflect.FileDescriptor
 
 const file_auth_key_proto_rawDesc = "" +
 	"\n" +
-	"\x0eauth_key.proto\x12\bprotocol\x1a\x10gcp_access.proto\x1a\x10git_access.proto\x1a\x10sql_access.proto\"\xfc\x01\n" +
+	"\x0eauth_key.proto\x12\bprotocol\x1a\x10gcp_access.proto\x1a\x10aws_access.proto\x1a\x0faz_access.proto\x1a\x10git_access.proto\x1a\x10sql_access.proto\"\xc7\x02\n" +
 	"\aAuthKey\x12\x18\n" +
 	"\acontext\x18\x01 \x01(\tR\acontext\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
@@ -143,7 +159,10 @@ const file_auth_key_proto_rawDesc = "" +
 	"\x03git\x18\x06 \x01(\v2\x13.protocol.GitAccessR\x03git\x12%\n" +
 	"\x03sql\x18\a \x01(\v2\x13.protocol.SqlAccessR\x03sql\x12\x10\n" +
 	"\x03key\x18\b \x01(\tR\x03key\x12\x12\n" +
-	"\x04cert\x18\t \x01(\tR\x04certBO\n" +
+	"\x04cert\x18\t \x01(\tR\x04cert\x12%\n" +
+	"\x03aws\x18\n" +
+	" \x01(\v2\x13.protocol.AwsAccessR\x03aws\x12\"\n" +
+	"\x02az\x18\v \x01(\v2\x12.protocol.AzAccessR\x02azBO\n" +
 	"\x17com.icodesoftware.protoB\x0eAuthKeyFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (
@@ -164,16 +183,20 @@ var file_auth_key_proto_goTypes = []any{
 	(*GcpAccess)(nil), // 1: protocol.GcpAccess
 	(*GitAccess)(nil), // 2: protocol.GitAccess
 	(*SqlAccess)(nil), // 3: protocol.SqlAccess
+	(*AwsAccess)(nil), // 4: protocol.AwsAccess
+	(*AzAccess)(nil),  // 5: protocol.AzAccess
 }
 var file_auth_key_proto_depIdxs = []int32{
 	1, // 0: protocol.AuthKey.gcp:type_name -> protocol.GcpAccess
 	2, // 1: protocol.AuthKey.git:type_name -> protocol.GitAccess
 	3, // 2: protocol.AuthKey.sql:type_name -> protocol.SqlAccess
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 3: protocol.AuthKey.aws:type_name -> protocol.AwsAccess
+	5, // 4: protocol.AuthKey.az:type_name -> protocol.AzAccess
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_auth_key_proto_init() }
@@ -182,6 +205,8 @@ func file_auth_key_proto_init() {
 		return
 	}
 	file_gcp_access_proto_init()
+	file_aws_access_proto_init()
+	file_az_access_proto_init()
 	file_git_access_proto_init()
 	file_sql_access_proto_init()
 	type x struct{}
