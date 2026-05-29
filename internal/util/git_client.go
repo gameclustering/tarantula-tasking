@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	git "github.com/go-git/go-git/v6"
@@ -29,11 +30,22 @@ func (g *GitClient) Open() error {
 }
 
 func (g *GitClient) sshOpt() (client.Option, error) {
-	auth, err := gossh.NewPublicKeys("git", []byte(g.PrivateKey), "")
+	key := normalizePemKey(g.PrivateKey)
+	auth, err := gossh.NewPublicKeys("git", []byte(key), "")
 	if err != nil {
 		return nil, err
 	}
 	return client.WithSSHAuth(auth), nil
+}
+
+// normalizePemKey ensures the PEM footer has the required 5 trailing dashes
+// and ends with a newline. Vault occasionally trims the last character.
+func normalizePemKey(key string) string {
+	key = strings.TrimRight(key, "\n")
+	if !strings.HasSuffix(key, "-----") {
+		key += "-"
+	}
+	return key + "\n"
 }
 
 func (g *GitClient) CurrentBranch() (string, error) {
@@ -124,8 +136,21 @@ func (g *GitClient) Checkout(branch string) error {
 	if err != nil {
 		return err
 	}
+	localRef := plumbing.NewBranchReferenceName(branch)
+	err = w.Checkout(&git.CheckoutOptions{Branch: localRef})
+	if err == nil {
+		return nil
+	}
+	// local branch not found — create it from the remote tracking ref
+	remoteRef := plumbing.NewRemoteReferenceName("origin", branch)
+	ref, err2 := g.repo.Reference(remoteRef, true)
+	if err2 != nil {
+		return err // return original error
+	}
 	return w.Checkout(&git.CheckoutOptions{
-		Branch: plumbing.NewBranchReferenceName(branch),
+		Branch: localRef,
+		Hash:   ref.Hash(),
+		Create: true,
 	})
 }
 
