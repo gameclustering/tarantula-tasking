@@ -109,7 +109,6 @@ func (s *AppManager) Shutdown() {
 	if !s.F.IsClusterMember {
 		s.cluster.disconnect()
 	}
-	util.GitPush()
 	s.Sql.Close()
 	core.AppLog.Info().Msg("app manager shutting down ...")
 }
