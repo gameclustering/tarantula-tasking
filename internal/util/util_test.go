@@ -36,7 +36,7 @@ func TestKey(t *testing.T) {
 	}
 }
 
-func TestVaultClient(t *testing.T) {
+func TestGitHubClient(t *testing.T) {
 	vclient := VaultClient{Host: "https://gameclustering.com", Token: ""}
 	err := vclient.Auth()
 	if err != nil {
@@ -47,11 +47,43 @@ func TestVaultClient(t *testing.T) {
 		t.Errorf("error %s", err.Error())
 		return
 	}
-	fmt.Printf("ak %s\n", ak.Git.Email)
-	//err = vclient.CreateKvStore("test/presence","test env keys")
-	err = vclient.PutSecret("test/presence", "git", "key1", "value1")
+	gh := GitHubApi{Token: ak.Git.Token, Org: ak.Git.Org}
+	repos, err := gh.ListRepos()
+
 	if err != nil {
 		t.Errorf("error %s", err.Error())
 		return
+	}
+	fmt.Printf("repos %v\n", repos)
+
+}
+
+func TestGcpApi(t *testing.T) {
+	vclient := VaultClient{Host: "https://gameclustering.com", Token: ""}
+	err := vclient.Auth()
+	if err != nil {
+		t.Errorf("error %s", err.Error())
+	}
+	ak, err := vclient.Load("dev/presence", "gcp")
+	if err != nil {
+		t.Errorf("error %s", err.Error())
+		return
+	}
+	cfg := ak.Gcp
+	gcp := GcpApi{ServiceAccount: cfg.Iam, ProjectId: cfg.ProjectId, Zone: cfg.Zone}
+	err = gcp.Auth()
+	if err != nil {
+		t.Errorf("error %s", err.Error())
+		return
+	}
+	instanceName := fmt.Sprintf("%s-%d", cfg.Prefix, 1)
+	err = gcp.Insert(instanceName, cfg.MachineType, cfg.ImageType)
+	if err != nil {
+		t.Errorf("error %s", err.Error())
+		return
+	}
+	err = gcp.Delete(instanceName)
+	if err != nil {
+		t.Errorf("error %s", err.Error())
 	}
 }

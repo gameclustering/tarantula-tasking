@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
@@ -9,11 +11,11 @@ import (
 )
 
 func NewRepositoryObejctCheck(s *CloudService) *protocol.TccTransationListener {
-	vm := RepositoryObejctCheck{s}
+	c := RepositoryObejctCheck{s}
 	tcc := protocol.TccTransationListener{}
-	tcc.Reserve = vm.reserse
-	tcc.Confirm = vm.confirm
-	tcc.Cancel = vm.cancel
+	tcc.Reserve = c.reserve
+	tcc.Confirm = c.confirm
+	tcc.Cancel = c.cancel
 	return &tcc
 }
 
@@ -21,27 +23,28 @@ type RepositoryObejctCheck struct {
 	*CloudService
 }
 
-func (v *RepositoryObejctCheck) reserse(t *protocol.Transaction) error {
-	core.AppLog.Debug().Msgf("update reserve %v", t.Meta)
-	var repo protocol.RepositoryObject
-	err := anypb.UnmarshalTo(t.Message, &repo, proto.UnmarshalOptions{})
-	if err != nil {
+func (v *RepositoryObejctCheck) reserve(t *protocol.Transaction) error {
+	core.AppLog.Debug().Msgf("check reserve %v", t.Meta)
+	var vm protocol.VMObject
+	if err := anypb.UnmarshalTo(t.Message, &vm, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
-
-	core.AppLog.Debug().Msgf("repository object %v", &repo)
-	github, err := v.AppManager.Cluster().AuthKey("git")
+	gitKey, err := v.Cluster().AuthKey("git")
 	if err != nil {
-		core.AppLog.Debug().Msgf("no git key %s", err.Error())
-		return v.insert(t.Meta)
+		return fmt.Errorf("git auth key: %w", err)
 	}
-	gapi := util.GitHubApi{Token: github.Git.Token, Org: github.Git.Org}
+	gapi := util.GitHubApi{Token: gitKey.Git.Token, Org: gitKey.Git.Org}
 	repos, err := gapi.ListRepos()
 	if err != nil {
-		core.AppLog.Debug().Msgf("repo error %s", err.Error())
+		return fmt.Errorf("list repos: %w", err)
 	}
-	core.AppLog.Debug().Msgf("repos %v", repos)
-	return v.insert(t.Meta)
+	for _, r := range repos {
+		if r.Name == vm.Repository {
+			core.AppLog.Debug().Msgf("repository %s found", vm.Repository)
+			return v.insert(t.Meta)
+		}
+	}
+	return fmt.Errorf("repository %s not found in org", vm.Repository)
 }
 
 func (v *RepositoryObejctCheck) confirm(t *protocol.Transaction) error {

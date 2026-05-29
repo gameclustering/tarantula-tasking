@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
@@ -20,7 +21,7 @@ type AdminService struct {
 }
 
 func (s *AdminService) Config() string {
-	return "./admin-conf.json"
+	return "/etc/tarantula/admin-conf.json"
 }
 
 func (s *AdminService) Start(f core.Env) error {
@@ -74,4 +75,10 @@ func (s *AdminService) Start(f core.Env) error {
 
 	core.AppLog.Info().Msgf("Admin service started %s\n", f.HttpBinding)
 	return nil
+}
+
+func (s *AdminService) Shutdown() {
+	s.Cluster().Unsubscribe(event.TASK_TOPIC_NAME)
+	time.Sleep(1 * time.Second)
+	s.AppManager.Shutdown()
 }

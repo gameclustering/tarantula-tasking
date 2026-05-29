@@ -61,6 +61,8 @@ func AppBootstrap(tcx TarantulaContext) {
 	<-sigs
 	core.AppLog.Info().Msg("Signal to exit")
 	tcx.Shutdown()
+	os.Remove(core.CERT_NAME)
+	os.Remove(core.KEY_NAME)
 	signal.Stop(sigs)
 	close(sigs)
 }

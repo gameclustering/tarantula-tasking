@@ -28,7 +28,7 @@ type GitHubApi struct {
 
 func (h *GitHubApi) ListRepos() ([]Repo, error) {
 	repos := make([]Repo, 0)
-	err := h.getJson(fmt.Sprintf("users/%s/repos", h.Org), func(resp *http.Response) error {
+	err := h.getJson(fmt.Sprintf("orgs/%s/repos", h.Org), func(resp *http.Response) error {
 		if resp.StatusCode != 200 {
 			return fmt.Errorf("wrong response code %d %s", resp.StatusCode, h.Org)
 		}

@@ -22,15 +22,14 @@ const (
 )
 
 type VMObject struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Vendor        string                 `protobuf:"bytes,1,opt,name=vendor,proto3" json:"vendor,omitempty"`
-	ProjectId     string                 `protobuf:"bytes,2,opt,name=projectId,proto3" json:"projectId,omitempty"`
-	Zone          string                 `protobuf:"bytes,3,opt,name=zone,proto3" json:"zone,omitempty"`
-	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
-	Prefix        string                 `protobuf:"bytes,5,opt,name=prefix,proto3" json:"prefix,omitempty"`
-	Count         uint32                 `protobuf:"fixed32,6,opt,name=count,proto3" json:"count,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Vendor            string                 `protobuf:"bytes,1,opt,name=vendor,proto3" json:"vendor,omitempty"` // cloud vendor key for AuthKey lookup
+	NumberOfInstances uint32                 `protobuf:"fixed32,2,opt,name=numberOfInstances,proto3" json:"numberOfInstances,omitempty"`
+	Repository        string                 `protobuf:"bytes,3,opt,name=repository,proto3" json:"repository,omitempty"` // git repo to clone and build
+	Tag               string                 `protobuf:"bytes,4,opt,name=tag,proto3" json:"tag,omitempty"`               // git tag / docker image tag
+	Branch            string                 `protobuf:"bytes,5,opt,name=branch,proto3" json:"branch,omitempty"`         // git branch for build
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *VMObject) Reset() {
@@ -70,53 +69,47 @@ func (x *VMObject) GetVendor() string {
 	return ""
 }
 
-func (x *VMObject) GetProjectId() string {
+func (x *VMObject) GetNumberOfInstances() uint32 {
 	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-func (x *VMObject) GetZone() string {
-	if x != nil {
-		return x.Zone
-	}
-	return ""
-}
-
-func (x *VMObject) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *VMObject) GetPrefix() string {
-	if x != nil {
-		return x.Prefix
-	}
-	return ""
-}
-
-func (x *VMObject) GetCount() uint32 {
-	if x != nil {
-		return x.Count
+		return x.NumberOfInstances
 	}
 	return 0
+}
+
+func (x *VMObject) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+func (x *VMObject) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+func (x *VMObject) GetBranch() string {
+	if x != nil {
+		return x.Branch
+	}
+	return ""
 }
 
 var File_vm_object_proto protoreflect.FileDescriptor
 
 const file_vm_object_proto_rawDesc = "" +
 	"\n" +
-	"\x0fvm_object.proto\x12\bprotocol\"\x96\x01\n" +
+	"\x0fvm_object.proto\x12\bprotocol\"\x9a\x01\n" +
 	"\bVMObject\x12\x16\n" +
-	"\x06vendor\x18\x01 \x01(\tR\x06vendor\x12\x1c\n" +
-	"\tprojectId\x18\x02 \x01(\tR\tprojectId\x12\x12\n" +
-	"\x04zone\x18\x03 \x01(\tR\x04zone\x12\x12\n" +
-	"\x04type\x18\x04 \x01(\tR\x04type\x12\x16\n" +
-	"\x06prefix\x18\x05 \x01(\tR\x06prefix\x12\x14\n" +
-	"\x05count\x18\x06 \x01(\aR\x05countBP\n" +
+	"\x06vendor\x18\x01 \x01(\tR\x06vendor\x12,\n" +
+	"\x11numberOfInstances\x18\x02 \x01(\aR\x11numberOfInstances\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x03 \x01(\tR\n" +
+	"repository\x12\x10\n" +
+	"\x03tag\x18\x04 \x01(\tR\x03tag\x12\x16\n" +
+	"\x06branch\x18\x05 \x01(\tR\x06branchBP\n" +
 	"\x17com.icodesoftware.protoB\x0fVMObjectFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (

@@ -33,6 +33,8 @@ const (
 	TRANSACTION_MODE_SEQUENCE   uint32 = 1
 
 	CERT_NAME         string = "./domain.crt"
+	KEY_NAME          string = "./key"
+	
 	RPC_TICKET_HEADER string = "ticket"
 )
 

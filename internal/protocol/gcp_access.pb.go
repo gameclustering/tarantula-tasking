@@ -25,6 +25,12 @@ type GcpAccess struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Iam           string                 `protobuf:"bytes,1,opt,name=iam,proto3" json:"iam,omitempty"`
 	Ssh           string                 `protobuf:"bytes,2,opt,name=ssh,proto3" json:"ssh,omitempty"`
+	ProjectId     string                 `protobuf:"bytes,3,opt,name=projectId,proto3" json:"projectId,omitempty"`
+	Zone          string                 `protobuf:"bytes,4,opt,name=zone,proto3" json:"zone,omitempty"`
+	Prefix        string                 `protobuf:"bytes,5,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	MachineType   string                 `protobuf:"bytes,6,opt,name=machineType,proto3" json:"machineType,omitempty"`
+	User          string                 `protobuf:"bytes,7,opt,name=user,proto3" json:"user,omitempty"`
+	ImageType     string                 `protobuf:"bytes,8,opt,name=imageType,proto3" json:"imageType,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -73,14 +79,62 @@ func (x *GcpAccess) GetSsh() string {
 	return ""
 }
 
+func (x *GcpAccess) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *GcpAccess) GetZone() string {
+	if x != nil {
+		return x.Zone
+	}
+	return ""
+}
+
+func (x *GcpAccess) GetPrefix() string {
+	if x != nil {
+		return x.Prefix
+	}
+	return ""
+}
+
+func (x *GcpAccess) GetMachineType() string {
+	if x != nil {
+		return x.MachineType
+	}
+	return ""
+}
+
+func (x *GcpAccess) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *GcpAccess) GetImageType() string {
+	if x != nil {
+		return x.ImageType
+	}
+	return ""
+}
+
 var File_gcp_access_proto protoreflect.FileDescriptor
 
 const file_gcp_access_proto_rawDesc = "" +
 	"\n" +
-	"\x10gcp_access.proto\x12\bprotocol\"/\n" +
+	"\x10gcp_access.proto\x12\bprotocol\"\xcd\x01\n" +
 	"\tGcpAccess\x12\x10\n" +
 	"\x03iam\x18\x01 \x01(\tR\x03iam\x12\x10\n" +
-	"\x03ssh\x18\x02 \x01(\tR\x03sshBQ\n" +
+	"\x03ssh\x18\x02 \x01(\tR\x03ssh\x12\x1c\n" +
+	"\tprojectId\x18\x03 \x01(\tR\tprojectId\x12\x12\n" +
+	"\x04zone\x18\x04 \x01(\tR\x04zone\x12\x16\n" +
+	"\x06prefix\x18\x05 \x01(\tR\x06prefix\x12 \n" +
+	"\vmachineType\x18\x06 \x01(\tR\vmachineType\x12\x12\n" +
+	"\x04user\x18\a \x01(\tR\x04user\x12\x1c\n" +
+	"\timageType\x18\b \x01(\tR\timageTypeBQ\n" +
 	"\x17com.icodesoftware.protoB\x10GcpAccessFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"io"
 	"net/http"
 
@@ -18,48 +17,60 @@ type AdminClusterCreate struct {
 }
 
 func (s *AdminClusterCreate) AccessControl() int32 {
-	return core.PROTECTED_ACCESS_CONTROL
+	return core.ADMIN_ACCESS_CONTROL
 }
 
 func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	var me protocol.RepositoryObject
-	var buf bytes.Buffer
-	_, err := io.Copy(&buf, r.Body)
+	var vm protocol.VMObject
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
-	err = protojson.Unmarshal(buf.Bytes(), &me)
+	if err := protojson.Unmarshal(body, &vm); err != nil {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
+		return
+	}
+	if vm.Repository == "" || (vm.Tag == "" && vm.Branch == "") {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "repository and tag or branch are required"}))
+		return
+	}
+
+	msg, err := anypb.New(&vm)
 	if err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
-	repo, err := anypb.New(&me)
-	if err != nil {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
-		return
-	}
-	vm, err := anypb.New(&protocol.VMObject{ProjectId: "test", Zone: "zone1"})
-	if err != nil {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
-		return
-	}
-	tb := persistence.NewTaskBuilder(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "register"})
+
+	tb := persistence.NewTaskBuilder(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "cluster-create"})
+
+	// Validator: check repo and cloud resources are ready
 	vb := tb.Validator(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "validator"})
-	vb.Transaction().Meta(&protocol.Meta{Name: "check"}).Message(repo).Build()
-	vb.Transaction().Meta(&protocol.Meta{Name: "update"}).Message(vm).Build()
-	vb.Transaction().Meta(&protocol.Meta{Name: "create"}).Message(vm).Build()
-	jb := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "job"})
-	jb.Transaction().Meta(&protocol.Meta{Name: "update"}).Message(vm).Build()
-	jb.Transaction().Meta(&protocol.Meta{Name: "create"}).Message(vm).Build()
-	jb.Transaction().Meta(&protocol.Meta{Name: "create"}).Message(vm).Build()
-	jb.Build()
+	vb.Transaction().Meta(&protocol.Meta{Name: "check"}).Message(msg).Build()
+	vb.Build()
+
+	// Job 1: create cloud VM instances
+	jb1 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "create"})
+	jb1.Transaction().Meta(&protocol.Meta{Name: "create"}).Message(msg).Build()
+	jb1.Build()
+
+	// Job 2: clone repo and build Docker image on VMs
+	jb2 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "build"})
+	jb2.Transaction().Meta(&protocol.Meta{Name: "build"}).Message(msg).Build()
+	jb2.Build()
+
+	// Job 3: deploy Docker image from source tree config on VMs
+	jb3 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "deploy"})
+	jb3.Transaction().Meta(&protocol.Meta{Name: "deploy"}).Message(msg).Build()
+	jb3.Build()
+
 	rp, err := s.Cluster().Issue(tb.Build())
 	if err != nil {
-		core.AppLog.Debug().Msgf("TASK ERR %s", err.Error())
+		core.AppLog.Debug().Msgf("cluster create task error: %s", err.Error())
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
-	core.AppLog.Debug().Msgf("TASK %v", rp)
-	w.Write(util.ToJson(core.OnSession{Successful: true, Message: ""}))
+	core.AppLog.Debug().Msgf("cluster create task issued: %v", rp)
+	w.Write(util.ToJson(core.OnSession{Successful: true}))
 }

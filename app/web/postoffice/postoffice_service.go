@@ -11,7 +11,6 @@ import (
 	"gameclustering.com/postoffice/clustering"
 )
 
-
 type PostofficeService struct {
 	bootstrap.AppManager
 	mm      *clustering.MemberlistManager
@@ -19,7 +18,7 @@ type PostofficeService struct {
 }
 
 func (s *PostofficeService) Config() string {
-	return "./postoffice-conf.json"
+	return "/etc/tarantula/postoffice-conf.json"
 }
 
 func (s *PostofficeService) Start(env core.Env) error {
@@ -76,7 +75,7 @@ func (c *PostofficeService) loadAuthContext(vault *util.VaultClient) error {
 		return err
 	}
 	c.Auth = au
-	err = os.WriteFile(clustering.KEY_NAME, []byte(auth.Key), 0600)
+	err = os.WriteFile(core.KEY_NAME, []byte(auth.Key), 0600)
 	if err != nil {
 		return err
 	}
