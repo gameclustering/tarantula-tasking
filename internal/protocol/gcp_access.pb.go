@@ -28,8 +28,9 @@ type GcpAccess struct {
 	ProjectId     string                 `protobuf:"bytes,3,opt,name=projectId,proto3" json:"projectId,omitempty"`
 	Zone          string                 `protobuf:"bytes,4,opt,name=zone,proto3" json:"zone,omitempty"`
 	Prefix        string                 `protobuf:"bytes,5,opt,name=prefix,proto3" json:"prefix,omitempty"`
-	Type          string                 `protobuf:"bytes,6,opt,name=type,proto3" json:"type,omitempty"`
+	MachineType   string                 `protobuf:"bytes,6,opt,name=machineType,proto3" json:"machineType,omitempty"`
 	User          string                 `protobuf:"bytes,7,opt,name=user,proto3" json:"user,omitempty"`
+	ImageType     string                 `protobuf:"bytes,8,opt,name=imageType,proto3" json:"imageType,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -99,9 +100,9 @@ func (x *GcpAccess) GetPrefix() string {
 	return ""
 }
 
-func (x *GcpAccess) GetType() string {
+func (x *GcpAccess) GetMachineType() string {
 	if x != nil {
-		return x.Type
+		return x.MachineType
 	}
 	return ""
 }
@@ -113,19 +114,27 @@ func (x *GcpAccess) GetUser() string {
 	return ""
 }
 
+func (x *GcpAccess) GetImageType() string {
+	if x != nil {
+		return x.ImageType
+	}
+	return ""
+}
+
 var File_gcp_access_proto protoreflect.FileDescriptor
 
 const file_gcp_access_proto_rawDesc = "" +
 	"\n" +
-	"\x10gcp_access.proto\x12\bprotocol\"\xa1\x01\n" +
+	"\x10gcp_access.proto\x12\bprotocol\"\xcd\x01\n" +
 	"\tGcpAccess\x12\x10\n" +
 	"\x03iam\x18\x01 \x01(\tR\x03iam\x12\x10\n" +
 	"\x03ssh\x18\x02 \x01(\tR\x03ssh\x12\x1c\n" +
 	"\tprojectId\x18\x03 \x01(\tR\tprojectId\x12\x12\n" +
 	"\x04zone\x18\x04 \x01(\tR\x04zone\x12\x16\n" +
-	"\x06prefix\x18\x05 \x01(\tR\x06prefix\x12\x12\n" +
-	"\x04type\x18\x06 \x01(\tR\x04type\x12\x12\n" +
-	"\x04user\x18\a \x01(\tR\x04userBQ\n" +
+	"\x06prefix\x18\x05 \x01(\tR\x06prefix\x12 \n" +
+	"\vmachineType\x18\x06 \x01(\tR\vmachineType\x12\x12\n" +
+	"\x04user\x18\a \x01(\tR\x04user\x12\x1c\n" +
+	"\timageType\x18\b \x01(\tR\timageTypeBQ\n" +
 	"\x17com.icodesoftware.protoB\x10GcpAccessFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (
