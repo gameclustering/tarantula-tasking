@@ -3,8 +3,18 @@ package util
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
 	"testing"
 )
+
+func vaultClient(t *testing.T) *VaultClient {
+	host := os.Getenv("VAULT_HOST")
+	token := os.Getenv("VAULT_TOKEN")
+	if host == "" || token == "" {
+		t.Skip("VAULT_HOST and VAULT_TOKEN env vars not set")
+	}
+	return &VaultClient{Host: host, Token: token}
+}
 
 func TestPassword(t *testing.T) {
 	h, err := HashPassword("password")
@@ -37,7 +47,8 @@ func TestKey(t *testing.T) {
 }
 
 func TestGitHubClient(t *testing.T) {
-	vclient := VaultClient{Host: "https://gameclustering.com", Token: ""}
+	vclient := vaultClient(t)
+
 	err := vclient.Auth()
 	if err != nil {
 		t.Errorf("error %s", err.Error())
@@ -59,7 +70,7 @@ func TestGitHubClient(t *testing.T) {
 }
 
 func TestGcpApi(t *testing.T) {
-	vclient := VaultClient{Host: "https://gameclustering.com", Token: ""}
+	vclient := vaultClient(t)
 	err := vclient.Auth()
 	if err != nil {
 		t.Errorf("error %s", err.Error())
