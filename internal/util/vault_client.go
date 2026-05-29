@@ -56,6 +56,10 @@ func (v *VaultClient) Load(mountPath string, path string) (*protocol.AuthKey, er
 		return v.toSqlKey(kv), nil
 	case "gcp":
 		return v.toGcpKey(kv), nil
+	case "aws":
+		return v.toAwsKey(kv), nil
+	case "az":
+		return v.toAzKey(kv), nil
 	case "git":
 		return v.toGitKey(kv), nil
 	}
@@ -93,16 +97,58 @@ func (a *VaultClient) toGcpKey(kv *vault.KVSecret) *protocol.AuthKey {
 	projectId, _ := kv.Data["projectId"].(string)
 	zone, _ := kv.Data["zone"].(string)
 	prefix, _ := kv.Data["prefix"].(string)
-	instanceType, _ := kv.Data["type"].(string)
+	machineType, _ := kv.Data["machineType"].(string)
 	user, _ := kv.Data["user"].(string)
+	imageType, _ := kv.Data["imageType"].(string)
 	ak := protocol.AuthKey{Gcp: &protocol.GcpAccess{}}
 	ak.Gcp.Iam = iam
 	ak.Gcp.Ssh = ssh
 	ak.Gcp.ProjectId = projectId
 	ak.Gcp.Zone = zone
 	ak.Gcp.Prefix = prefix
-	ak.Gcp.Type = instanceType
+	ak.Gcp.MachineType = machineType
+	ak.Gcp.ImageType = imageType
 	ak.Gcp.User = user
+	return &ak
+}
+
+func (a *VaultClient) toAwsKey(kv *vault.KVSecret) *protocol.AuthKey {
+	accessKeyId, _ := kv.Data["accessKeyId"].(string)
+	secretAccessKey, _ := kv.Data["secretAccessKey"].(string)
+	region, _ := kv.Data["region"].(string)
+	prefix, _ := kv.Data["prefix"].(string)
+	instanceType, _ := kv.Data["type"].(string)
+	user, _ := kv.Data["user"].(string)
+	ak := protocol.AuthKey{Aws: &protocol.AwsAccess{}}
+	ak.Aws.AccessKeyId = accessKeyId
+	ak.Aws.SecretAccessKey = secretAccessKey
+	ak.Aws.Region = region
+	ak.Aws.Prefix = prefix
+	ak.Aws.Type = instanceType
+	ak.Aws.User = user
+	return &ak
+}
+
+func (a *VaultClient) toAzKey(kv *vault.KVSecret) *protocol.AuthKey {
+	tenantId, _ := kv.Data["tenantId"].(string)
+	clientId, _ := kv.Data["clientId"].(string)
+	clientSecret, _ := kv.Data["clientSecret"].(string)
+	subscriptionId, _ := kv.Data["subscriptionId"].(string)
+	resourceGroup, _ := kv.Data["resourceGroup"].(string)
+	region, _ := kv.Data["region"].(string)
+	prefix, _ := kv.Data["prefix"].(string)
+	instanceType, _ := kv.Data["type"].(string)
+	user, _ := kv.Data["user"].(string)
+	ak := protocol.AuthKey{Az: &protocol.AzAccess{}}
+	ak.Az.TenantId = tenantId
+	ak.Az.ClientId = clientId
+	ak.Az.ClientSecret = clientSecret
+	ak.Az.SubscriptionId = subscriptionId
+	ak.Az.ResourceGroup = resourceGroup
+	ak.Az.Region = region
+	ak.Az.Prefix = prefix
+	ak.Az.Type = instanceType
+	ak.Az.User = user
 	return &ak
 }
 

@@ -65,13 +65,13 @@ func (g *GcpApi) Get(name string) (*computepb.Instance, error) {
 	return g.client.Get(context.Background(), req)
 }
 
-func (g *GcpApi) Insert(name string) error {
+func (g *GcpApi) Insert(name,machineType,imageType string) error {
 	req := &computepb.InsertInstanceRequest{
 		Project: g.ProjectId,
 		Zone:    g.Zone,
 		InstanceResource: &computepb.Instance{
 			Name:        proto.String(name),
-			MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/n2-standard-4", g.Zone)),
+			MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", g.Zone,machineType)),
 			NetworkInterfaces: []*computepb.NetworkInterface{
 				{
 					Name: proto.String("global/networks/default"),
@@ -93,7 +93,7 @@ func (g *GcpApi) Insert(name string) error {
 			Disks: []*computepb.AttachedDisk{
 				{
 					InitializeParams: &computepb.AttachedDiskInitializeParams{
-						SourceImage: proto.String("projects/cos-cloud/global/images/family/cos-121-lts"),
+						SourceImage: proto.String(imageType),
 						DiskSizeGb:  proto.Int64(20),
 					},
 					AutoDelete: proto.Bool(true),
