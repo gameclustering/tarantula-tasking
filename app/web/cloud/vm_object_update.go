@@ -51,7 +51,7 @@ func (v *VMObjectUpdate) reserve(t *protocol.Transaction) error {
 		return fmt.Errorf("create temp key file: %w", err)
 	}
 	defer os.Remove(keyFile.Name())
-	if _, err := keyFile.WriteString(gitKey.Git.Key); err != nil {
+	if _, err := keyFile.WriteString(util.NormalizePemKey(gitKey.Git.Key)); err != nil {
 		keyFile.Close()
 		return fmt.Errorf("write git key: %w", err)
 	}
@@ -99,7 +99,7 @@ func (v *VMObjectUpdate) installDocker(ssh util.SshClient, user string, name str
 		"sudo chmod a+r /etc/apt/keyrings/docker.asc",
 		`echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null`,
 		"sudo apt-get update -qq",
-		"sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin",
+		"sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin git",
 		fmt.Sprintf("sudo usermod -aG docker %s", user),
 		"ssh-keyscan github.com >> ~/.ssh/known_hosts",
 	}

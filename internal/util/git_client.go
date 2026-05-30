@@ -30,7 +30,7 @@ func (g *GitClient) Open() error {
 }
 
 func (g *GitClient) sshOpt() (client.Option, error) {
-	key := normalizePemKey(g.PrivateKey)
+	key := NormalizePemKey(g.PrivateKey)
 	auth, err := gossh.NewPublicKeys("git", []byte(key), "")
 	if err != nil {
 		return nil, err
@@ -38,9 +38,9 @@ func (g *GitClient) sshOpt() (client.Option, error) {
 	return client.WithSSHAuth(auth), nil
 }
 
-// normalizePemKey ensures the PEM footer has the required 5 trailing dashes
+// NormalizePemKey ensures the PEM footer has the required 5 trailing dashes
 // and ends with a newline. Vault occasionally trims the last character.
-func normalizePemKey(key string) string {
+func NormalizePemKey(key string) string {
 	key = strings.TrimRight(key, "\n")
 	if !strings.HasSuffix(key, "-----") {
 		key += "-"
