@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
@@ -73,8 +74,18 @@ func (v *VMObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user stri
 	}
 	natIP := ins.GetNetworkInterfaces()[0].AccessConfigs[0].GetNatIP()
 	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
-	if err := ssh.WithKey(); err != nil {
-		return fmt.Errorf("ssh connect: %w", err)
+
+	// New instances take 30-90s to boot; retry SSH until ready.
+	const maxWait = 2 * time.Minute
+	deadline := time.Now().Add(maxWait)
+	for {
+		if err := ssh.WithKey(); err == nil {
+			break
+		} else if time.Now().After(deadline) {
+			return fmt.Errorf("ssh connect: timed out waiting for instance to be ready: %w", err)
+		}
+		core.AppLog.Debug().Msgf("setup [%s]: waiting for SSH...", name)
+		time.Sleep(10 * time.Second)
 	}
 	defer ssh.Close()
 
