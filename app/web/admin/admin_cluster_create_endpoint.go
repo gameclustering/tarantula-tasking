@@ -55,15 +55,20 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 	jb1.Transaction().Meta(&protocol.Meta{Name: "create"}).Message(msg).Build()
 	jb1.Build()
 
-	// Job 2: clone repo and build Docker image on VMs
-	jb2 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "build"})
-	jb2.Transaction().Meta(&protocol.Meta{Name: "build"}).Message(msg).Build()
+	// Job 2: install Docker and upload git SSH key on new VMs
+	jb2 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "update"})
+	jb2.Transaction().Meta(&protocol.Meta{Name: "update"}).Message(msg).Build()
 	jb2.Build()
 
-	// Job 3: deploy Docker image from source tree config on VMs
-	jb3 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "deploy"})
-	jb3.Transaction().Meta(&protocol.Meta{Name: "deploy"}).Message(msg).Build()
+	// Job 3: clone repo and build Docker image on VMs
+	jb3 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "build"})
+	jb3.Transaction().Meta(&protocol.Meta{Name: "build"}).Message(msg).Build()
 	jb3.Build()
+
+	// Job 4: deploy Docker image from source tree config on VMs
+	jb4 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "deploy"})
+	jb4.Transaction().Meta(&protocol.Meta{Name: "deploy"}).Message(msg).Build()
+	jb4.Build()
 
 	rp, err := s.Cluster().Issue(tb.Build())
 	if err != nil {

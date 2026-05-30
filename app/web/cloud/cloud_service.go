@@ -35,7 +35,7 @@ func (s *CloudService) Start(f core.Env) error {
 		}
 	}})
 	s.Cluster().Register("check", NewRepositoryObejctCheck(s))
-	s.Cluster().Register("create", NewVMObejctCreate(s))
+	s.Cluster().Register("create", NewVMObjectCreate(s))
 	s.Cluster().Register("update", NewVMObjectUpdate(s))
 	s.Cluster().Register("build", NewVMObjectBuild(s))
 	s.Cluster().Register("deploy", NewVMObjectDeploy(s))

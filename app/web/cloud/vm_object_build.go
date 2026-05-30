@@ -75,7 +75,7 @@ func (v *VMObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user str
 		fmt.Sprintf("rm -rf %s", vm.Repository),
 		fmt.Sprintf("git clone git@github.com:%s/%s.git", org, vm.Repository),
 		fmt.Sprintf("cd %s && git checkout %s", vm.Repository, ref),
-		fmt.Sprintf("cd %s && docker build -t %s:%s .", vm.Repository, vm.Repository, vm.Tag),
+		fmt.Sprintf("cd %s && docker build -t %s:%s .", vm.Repository, vm.Repository, ref),
 	}
 	for _, cmd := range cmds {
 		out.Reset()

@@ -61,10 +61,14 @@ func (v *VMObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey string, user s
 	}
 	defer ssh.Close()
 
+	ref := vm.Tag
+	if ref == "" {
+		ref = vm.Branch
+	}
 	var out bytes.Buffer
 	cmds := []string{
-		fmt.Sprintf("cd %s && docker compose pull", vm.Repository),
-		fmt.Sprintf("cd %s && docker compose up -d", vm.Repository),
+		fmt.Sprintf("docker stop %s 2>/dev/null || true && docker rm %s 2>/dev/null || true", vm.Repository, vm.Repository),
+		fmt.Sprintf("docker run -d --name %s -P %s:%s", vm.Repository, vm.Repository, ref),
 	}
 	for _, cmd := range cmds {
 		out.Reset()
