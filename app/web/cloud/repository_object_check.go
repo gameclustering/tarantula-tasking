@@ -25,8 +25,8 @@ type RepositoryObejctCheck struct {
 
 func (v *RepositoryObejctCheck) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("check reserve %v", t.Meta)
-	var vm protocol.VMObject
-	if err := anypb.UnmarshalTo(t.Message, &vm, proto.UnmarshalOptions{}); err != nil {
+	var plan protocol.PlanObject
+	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
 	gitKey, err := v.Cluster().AuthKey("git")
@@ -39,12 +39,12 @@ func (v *RepositoryObejctCheck) reserve(t *protocol.Transaction) error {
 		return fmt.Errorf("list repos: %w", err)
 	}
 	for _, r := range repos {
-		if r.Name == vm.Repository {
-			core.AppLog.Debug().Msgf("repository %s found", vm.Repository)
+		if r.Name == plan.AppRepo.Name {
+			core.AppLog.Debug().Msgf("repository %s found", plan.AppRepo.Name)
 			return v.insert(t.Meta)
 		}
 	}
-	return fmt.Errorf("repository %s not found in org", vm.Repository)
+	return fmt.Errorf("repository %s not found in org", plan.AppRepo.Name)
 }
 
 func (v *RepositoryObejctCheck) confirm(t *protocol.Transaction) error {

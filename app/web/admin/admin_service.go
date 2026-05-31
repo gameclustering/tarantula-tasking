@@ -73,6 +73,10 @@ func (s *AdminService) Start(f core.Env) error {
 
 	http.Handle("/admin/cluster/create", bootstrap.Logging(&AdminClusterCreate{AdminService: s}))
 
+	http.Handle("GET /admin/cluster/repo", bootstrap.Logging(&AdminClusterRepoList{AdminService: s}))
+	http.Handle("POST /admin/cluster/repo", bootstrap.Logging(&AdminClusterRepoCreate{AdminService: s}))
+	http.Handle("DELETE /admin/cluster/repo/{id}", bootstrap.Logging(&AdminClusterRepoDelete{AdminService: s}))
+
 	core.AppLog.Info().Msgf("Admin service started %s\n", f.HttpBinding)
 	return nil
 }
