@@ -11,48 +11,53 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewVMObjectBuild(s *CloudService) *protocol.TccTransationListener {
-	b := VMObjectBuild{s}
+func NewPlanObjectBuild(s *CloudService) *protocol.TccTransationListener {
+	p := PlanObjectBuild{s}
 	tcc := protocol.TccTransationListener{}
-	tcc.Reserve = b.reserve
-	tcc.Confirm = b.confirm
-	tcc.Cancel = b.cancel
+	tcc.Reserve = p.reserve
+	tcc.Confirm = p.confirm
+	tcc.Cancel = p.cancel
 	return &tcc
 }
 
-type VMObjectBuild struct {
+type PlanObjectBuild struct {
 	*CloudService
 }
 
-func (v *VMObjectBuild) reserve(t *protocol.Transaction) error {
+func (v *PlanObjectBuild) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("build reserve %v", t.Meta)
 	var plan protocol.PlanObject
 	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
+	gitKey, err := v.Cluster().AuthKey("git")
+	if err != nil {
+		return fmt.Errorf("git auth key: %w", err)
+	}
+	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	if err != nil {
+		return fmt.Errorf("deploy config: %w", err)
+	}
+	phase := cfg.Resolve(plan.Env, "build")
+
 	gcpKey, err := v.Cluster().AuthKey("gcp")
 	if err != nil {
 		return fmt.Errorf("gcp auth key: %w", err)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: gcpKey.Gcp.Zone}
+	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
 	if err := gcp.Auth(); err != nil {
 		return fmt.Errorf("gcp auth: %w", err)
 	}
 	defer gcp.Close()
 
-	gitKey, err := v.Cluster().AuthKey("git")
-	if err != nil {
-		return fmt.Errorf("git auth key: %w", err)
-	}
-
-	name := fmt.Sprintf("%s-%02d", gcpKey.Gcp.Prefix, 1)
+	name := fmt.Sprintf("%s-%02d", phase.Prefix, 1)
 	if err := v.buildOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, gitKey.Git.Org, name, plan.AppRepo); err != nil {
 		core.AppLog.Warn().Msgf("build on instance %s: %s", name, err.Error())
 	}
 	return v.insert(t.Meta)
 }
 
-func (v *VMObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user string, org string, name string, repo *protocol.RepoObject) error {
+func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user string, org string, name string, repo *protocol.RepoObject) error {
 	ins, err := gcp.Get(name)
 	if err != nil {
 		return fmt.Errorf("get instance: %w", err)
@@ -85,12 +90,12 @@ func (v *VMObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user str
 	return nil
 }
 
-func (v *VMObjectBuild) confirm(t *protocol.Transaction) error {
+func (v *PlanObjectBuild) confirm(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("build confirm %v", t.Meta)
 	return v.insert(t.Meta)
 }
 
-func (v *VMObjectBuild) cancel(t *protocol.Transaction) error {
+func (v *PlanObjectBuild) cancel(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("build cancel %v", t.Meta)
 	return v.insert(t.Meta)
 }

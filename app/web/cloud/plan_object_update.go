@@ -13,39 +13,44 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewVMObjectUpdate(s *CloudService) *protocol.TccTransationListener {
-	vm := VMObjectUpdate{s}
+func NewPlanObjectUpdate(s *CloudService) *protocol.TccTransationListener {
+	p := PlanObjectUpdate{s}
 	tcc := protocol.TccTransationListener{}
-	tcc.Reserve = vm.reserve
-	tcc.Confirm = vm.confirm
-	tcc.Cancel = vm.cancel
+	tcc.Reserve = p.reserve
+	tcc.Confirm = p.confirm
+	tcc.Cancel = p.cancel
 	return &tcc
 }
 
-type VMObjectUpdate struct {
+type PlanObjectUpdate struct {
 	*CloudService
 }
 
-func (v *VMObjectUpdate) reserve(t *protocol.Transaction) error {
+func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update reserve %v", t.Meta)
 	var plan protocol.PlanObject
 	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
-	gcpKey, err := v.Cluster().AuthKey("gcp")
-	if err != nil {
-		return fmt.Errorf("gcp auth key: %w", err)
-	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: gcpKey.Gcp.Zone}
-	if err := gcp.Auth(); err != nil {
-		return fmt.Errorf("gcp auth: %w", err)
-	}
-	defer gcp.Close()
-
 	gitKey, err := v.Cluster().AuthKey("git")
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
+	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	if err != nil {
+		return fmt.Errorf("deploy config: %w", err)
+	}
+	phase := cfg.Resolve(plan.Env, "build")
+
+	gcpKey, err := v.Cluster().AuthKey("gcp")
+	if err != nil {
+		return fmt.Errorf("gcp auth key: %w", err)
+	}
+	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
+	if err := gcp.Auth(); err != nil {
+		return fmt.Errorf("gcp auth: %w", err)
+	}
+	defer gcp.Close()
 
 	keyFile, err := os.CreateTemp("", "id_ed25519_*")
 	if err != nil {
@@ -58,14 +63,14 @@ func (v *VMObjectUpdate) reserve(t *protocol.Transaction) error {
 	}
 	keyFile.Close()
 
-	name := fmt.Sprintf("%s-%02d", gcpKey.Gcp.Prefix, 1)
+	name := fmt.Sprintf("%s-%02d", phase.Prefix, 1)
 	if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
 		core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
 	}
 	return v.insert(t.Meta)
 }
 
-func (v *VMObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user string, name string, keyFile string) error {
+func (v *PlanObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user string, name string, keyFile string) error {
 	ins, err := gcp.Get(name)
 	if err != nil {
 		return fmt.Errorf("get instance: %w", err)
@@ -90,14 +95,13 @@ func (v *VMObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user stri
 	if err := v.installDocker(ssh, user, name); err != nil {
 		return fmt.Errorf("install docker: %w", err)
 	}
-
 	if err := v.uploadGitKey(ssh, user, keyFile, name); err != nil {
 		return fmt.Errorf("upload git key: %w", err)
 	}
 	return nil
 }
 
-func (v *VMObjectUpdate) installDocker(ssh util.SshClient, user string, name string) error {
+func (v *PlanObjectUpdate) installDocker(ssh util.SshClient, user string, name string) error {
 	var out bytes.Buffer
 	cmds := []string{
 		"mkdir -p ~/.ssh && chmod 700 ~/.ssh",
@@ -122,7 +126,7 @@ func (v *VMObjectUpdate) installDocker(ssh util.SshClient, user string, name str
 	return nil
 }
 
-func (v *VMObjectUpdate) uploadGitKey(ssh util.SshClient, user string, keyFile string, name string) error {
+func (v *PlanObjectUpdate) uploadGitKey(ssh util.SshClient, user string, keyFile string, name string) error {
 	f, err := os.Open(keyFile)
 	if err != nil {
 		return fmt.Errorf("open key file: %w", err)
@@ -137,12 +141,12 @@ func (v *VMObjectUpdate) uploadGitKey(ssh util.SshClient, user string, keyFile s
 	return nil
 }
 
-func (v *VMObjectUpdate) confirm(t *protocol.Transaction) error {
+func (v *PlanObjectUpdate) confirm(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update confirm %v", t.Meta)
 	return v.insert(t.Meta)
 }
 
-func (v *VMObjectUpdate) cancel(t *protocol.Transaction) error {
+func (v *PlanObjectUpdate) cancel(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update cancel %v", t.Meta)
 	return v.insert(t.Meta)
 }
