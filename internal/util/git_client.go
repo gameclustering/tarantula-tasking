@@ -12,6 +12,7 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/client"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	gossh "github.com/go-git/go-git/v6/plumbing/transport/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 type GitClient struct {
@@ -37,6 +38,7 @@ func (g *GitClient) sshOpt() (client.Option, error) {
 	if err != nil {
 		return nil, err
 	}
+	auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	return client.WithSSHAuth(auth), nil
 }
 
