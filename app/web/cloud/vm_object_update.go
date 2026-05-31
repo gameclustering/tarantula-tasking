@@ -28,8 +28,8 @@ type VMObjectUpdate struct {
 
 func (v *VMObjectUpdate) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update reserve %v", t.Meta)
-	var vm protocol.VMObject
-	if err := anypb.UnmarshalTo(t.Message, &vm, proto.UnmarshalOptions{}); err != nil {
+	var plan protocol.PlanObject
+	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
 	gcpKey, err := v.Cluster().AuthKey("gcp")
@@ -58,11 +58,9 @@ func (v *VMObjectUpdate) reserve(t *protocol.Transaction) error {
 	}
 	keyFile.Close()
 
-	for i := uint32(1); i <= vm.NumberOfInstances; i++ {
-		name := fmt.Sprintf("%s-%02d", gcpKey.Gcp.Prefix, i)
-		if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
-			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
-		}
+	name := fmt.Sprintf("%s-%02d", gcpKey.Gcp.Prefix, 1)
+	if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
+		core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
 	}
 	return v.insert(t.Meta)
 }

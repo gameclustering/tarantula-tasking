@@ -26,8 +26,8 @@ type VMObjectBuild struct {
 
 func (v *VMObjectBuild) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("build reserve %v", t.Meta)
-	var vm protocol.VMObject
-	if err := anypb.UnmarshalTo(t.Message, &vm, proto.UnmarshalOptions{}); err != nil {
+	var plan protocol.PlanObject
+	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
 	gcpKey, err := v.Cluster().AuthKey("gcp")
@@ -45,16 +45,14 @@ func (v *VMObjectBuild) reserve(t *protocol.Transaction) error {
 		return fmt.Errorf("git auth key: %w", err)
 	}
 
-	for i := uint32(1); i <= vm.NumberOfInstances; i++ {
-		name := fmt.Sprintf("%s-%02d", gcpKey.Gcp.Prefix, i)
-		if err := v.buildOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, gitKey.Git.Org, name, &vm); err != nil {
-			core.AppLog.Warn().Msgf("build on instance %s: %s", name, err.Error())
-		}
+	name := fmt.Sprintf("%s-%02d", gcpKey.Gcp.Prefix, 1)
+	if err := v.buildOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, gitKey.Git.Org, name, plan.AppRepo); err != nil {
+		core.AppLog.Warn().Msgf("build on instance %s: %s", name, err.Error())
 	}
 	return v.insert(t.Meta)
 }
 
-func (v *VMObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user string, org string, name string, vm *protocol.VMObject) error {
+func (v *VMObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user string, org string, name string, repo *protocol.RepoObject) error {
 	ins, err := gcp.Get(name)
 	if err != nil {
 		return fmt.Errorf("get instance: %w", err)
@@ -66,16 +64,16 @@ func (v *VMObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user str
 	}
 	defer ssh.Close()
 
-	ref := vm.Tag
+	ref := repo.Tag
 	if ref == "" {
-		ref = vm.Branch
+		ref = repo.Branch
 	}
 	var out bytes.Buffer
 	cmds := []string{
-		fmt.Sprintf("rm -rf %s", vm.Repository),
-		fmt.Sprintf("git clone git@github.com:%s/%s.git", org, vm.Repository),
-		fmt.Sprintf("cd %s && git checkout %s", vm.Repository, ref),
-		fmt.Sprintf("cd %s && docker build -t %s:%s .", vm.Repository, vm.Repository, ref),
+		fmt.Sprintf("rm -rf %s", repo.Name),
+		fmt.Sprintf("git clone git@github.com:%s/%s.git", org, repo.Name),
+		fmt.Sprintf("cd %s && git checkout %s", repo.Name, ref),
+		fmt.Sprintf("cd %s && docker build -t %s:%s .", repo.Name, repo.Name, ref),
 	}
 	for _, cmd := range cmds {
 		out.Reset()
