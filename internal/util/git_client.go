@@ -2,6 +2,8 @@ package util
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -169,6 +171,26 @@ func (g *GitClient) Clone(url, path string) error {
 	g.repo = r
 	g.Path = path
 	return nil
+}
+
+// CloneOrUpdate clones the repo to path if it does not exist; pulls if it does.
+func (g *GitClient) CloneOrUpdate(url, path string) error {
+	if _, err := os.Stat(filepath.Join(path, ".git")); err == nil {
+		g.Path = path
+		if err := g.Open(); err != nil {
+			return fmt.Errorf("open existing repo: %w", err)
+		}
+		return g.Pull()
+	}
+	return g.Clone(url, path)
+}
+
+// CheckoutRef checks out tag if non-empty, otherwise branch.
+func (g *GitClient) CheckoutRef(tag, branch string) error {
+	if tag != "" {
+		return g.CheckoutTag(tag)
+	}
+	return g.Checkout(branch)
 }
 
 func (g *GitClient) CheckoutTag(tag string) error {

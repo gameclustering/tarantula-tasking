@@ -22,22 +22,26 @@ func (s *AdminClusterCreate) AccessControl() int32 {
 
 func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	var vm protocol.VMObject
+	var plan protocol.PlanObject
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
-	if err := protojson.Unmarshal(body, &vm); err != nil {
+	if err := protojson.Unmarshal(body, &plan); err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
-	if vm.Repository == "" || (vm.Tag == "" && vm.Branch == "") {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "repository and tag or branch are required"}))
+	if plan.AppRepo == nil || plan.AppRepo.Name == "" {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "appRepo name is required"}))
+		return
+	}
+	if plan.Vendor == "" {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "vendor is required"}))
 		return
 	}
 
-	msg, err := anypb.New(&vm)
+	msg, err := anypb.New(&plan)
 	if err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return

@@ -11,45 +11,55 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewVMObjectDeploy(s *CloudService) *protocol.TccTransationListener {
-	d := VMObjectDeploy{s}
+func NewPlanObjectDeploy(s *CloudService) *protocol.TccTransationListener {
+	p := PlanObjectDeploy{s}
 	tcc := protocol.TccTransationListener{}
-	tcc.Reserve = d.reserve
-	tcc.Confirm = d.confirm
-	tcc.Cancel = d.cancel
+	tcc.Reserve = p.reserve
+	tcc.Confirm = p.confirm
+	tcc.Cancel = p.cancel
 	return &tcc
 }
 
-type VMObjectDeploy struct {
+type PlanObjectDeploy struct {
 	*CloudService
 }
 
-func (v *VMObjectDeploy) reserve(t *protocol.Transaction) error {
+func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("deploy reserve %v", t.Meta)
-	var vm protocol.VMObject
-	if err := anypb.UnmarshalTo(t.Message, &vm, proto.UnmarshalOptions{}); err != nil {
+	var plan protocol.PlanObject
+	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
+	gitKey, err := v.Cluster().AuthKey("git")
+	if err != nil {
+		return fmt.Errorf("git auth key: %w", err)
+	}
+	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	if err != nil {
+		return fmt.Errorf("deploy config: %w", err)
+	}
+	phase := cfg.Resolve(plan.Env, "deploy")
+
 	gcpKey, err := v.Cluster().AuthKey("gcp")
 	if err != nil {
 		return fmt.Errorf("gcp auth key: %w", err)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: gcpKey.Gcp.Zone}
+	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
 	if err := gcp.Auth(); err != nil {
 		return fmt.Errorf("gcp auth: %w", err)
 	}
 	defer gcp.Close()
 
-	for i := uint32(1); i <= vm.NumberOfInstances; i++ {
-		name := fmt.Sprintf("%s-%02d", gcpKey.Gcp.Prefix, i)
-		if err := v.deployOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, &vm); err != nil {
+	for i := 1; i <= phase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
+		if err := v.deployOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, plan.AppRepo); err != nil {
 			core.AppLog.Warn().Msgf("deploy on instance %s: %s", name, err.Error())
 		}
 	}
 	return v.insert(t.Meta)
 }
 
-func (v *VMObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey string, user string, name string, vm *protocol.VMObject) error {
+func (v *PlanObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey string, user string, name string, repo *protocol.RepoObject) error {
 	ins, err := gcp.Get(name)
 	if err != nil {
 		return fmt.Errorf("get instance: %w", err)
@@ -61,14 +71,14 @@ func (v *VMObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey string, user s
 	}
 	defer ssh.Close()
 
-	ref := vm.Tag
+	ref := repo.Tag
 	if ref == "" {
-		ref = vm.Branch
+		ref = repo.Branch
 	}
 	var out bytes.Buffer
 	cmds := []string{
-		fmt.Sprintf("docker stop %s 2>/dev/null || true && docker rm %s 2>/dev/null || true", vm.Repository, vm.Repository),
-		fmt.Sprintf("docker run -d --name %s -P %s:%s", vm.Repository, vm.Repository, ref),
+		fmt.Sprintf("docker stop %s 2>/dev/null || true && docker rm %s 2>/dev/null || true", repo.Name, repo.Name),
+		fmt.Sprintf("docker run -d --name %s -P %s:%s", repo.Name, repo.Name, ref),
 	}
 	for _, cmd := range cmds {
 		out.Reset()
@@ -80,12 +90,12 @@ func (v *VMObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey string, user s
 	return nil
 }
 
-func (v *VMObjectDeploy) confirm(t *protocol.Transaction) error {
+func (v *PlanObjectDeploy) confirm(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("deploy confirm %v", t.Meta)
 	return v.insert(t.Meta)
 }
 
-func (v *VMObjectDeploy) cancel(t *protocol.Transaction) error {
+func (v *PlanObjectDeploy) cancel(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("deploy cancel %v", t.Meta)
 	return v.insert(t.Meta)
 }
