@@ -44,6 +44,10 @@ func (v *PlanObjectBuild) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("gcp auth key: %w", err)
 	}
+	dockerKey, err := v.Cluster().AuthKey("docker")
+	if err != nil {
+		return fmt.Errorf("docker auth key: %w", err)
+	}
 	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
 	if err := gcp.Auth(); err != nil {
 		return fmt.Errorf("gcp auth: %w", err)
@@ -51,13 +55,13 @@ func (v *PlanObjectBuild) reserve(t *protocol.Transaction) error {
 	defer gcp.Close()
 
 	name := fmt.Sprintf("%s-%02d", phase.Prefix, 1)
-	if err := v.buildOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, gitKey.Git.Org, name, plan.AppRepo); err != nil {
+	if err := v.buildOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, gitKey.Git.Org, name, plan.AppRepo, dockerKey.Docker); err != nil {
 		core.AppLog.Warn().Msgf("build on instance %s: %s", name, err.Error())
 	}
 	return v.insert(t.Meta)
 }
 
-func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user string, org string, name string, repo *protocol.RepoObject) error {
+func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user string, org string, name string, repo *protocol.RepoObject, docker *protocol.DockerAccess) error {
 	ins, err := gcp.Get(name)
 	if err != nil {
 		return fmt.Errorf("get instance: %w", err)
@@ -73,12 +77,19 @@ func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user s
 	if ref == "" {
 		ref = repo.Branch
 	}
+	cred := docker.Token
+	if cred == "" {
+		cred = docker.Password
+	}
+	image := fmt.Sprintf("%s/%s:%s", docker.Username, repo.Name, ref)
 	var out bytes.Buffer
 	cmds := []string{
 		fmt.Sprintf("rm -rf %s", repo.Name),
 		fmt.Sprintf("git clone git@github.com:%s/%s.git", org, repo.Name),
 		fmt.Sprintf("cd %s && git checkout %s", repo.Name, ref),
-		fmt.Sprintf("cd %s && docker build -t %s:%s .", repo.Name, repo.Name, ref),
+		fmt.Sprintf("cd %s && docker build -t %s .", repo.Name, image),
+		fmt.Sprintf("printf '%%s' '%s' | docker login %s -u %s --password-stdin", cred, docker.Server, docker.Username),
+		fmt.Sprintf("docker push %s", image),
 	}
 	for _, cmd := range cmds {
 		out.Reset()

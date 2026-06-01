@@ -62,6 +62,8 @@ func (v *VaultClient) Load(mountPath string, path string) (*protocol.AuthKey, er
 		return v.toAzKey(kv), nil
 	case "git":
 		return v.toGitKey(kv), nil
+	case "docker":
+		return v.toDockerKey(kv), nil
 	}
 	return &ak, fmt.Errorf("key path not existed")
 }
@@ -106,6 +108,7 @@ func (a *VaultClient) toGcpKey(kv *vault.KVSecret) *protocol.AuthKey {
 	ak.Gcp.ProjectId = projectId
 	ak.Gcp.Zone = zone
 	ak.Gcp.Prefix = prefix
+	
 	ak.Gcp.MachineType = machineType
 	ak.Gcp.ImageType = imageType
 	ak.Gcp.User = user
@@ -164,5 +167,20 @@ func (a *VaultClient) toGitKey(kv *vault.KVSecret) *protocol.AuthKey {
 	ak.Git.Email = email
 	ak.Git.Token = token
 	ak.Git.Org = org
+	return &ak
+}
+
+func (a *VaultClient) toDockerKey(kv *vault.KVSecret) *protocol.AuthKey {
+	server, _ := kv.Data["server"].(string)
+	username, _ := kv.Data["username"].(string)
+	password, _ := kv.Data["password"].(string)
+	email, _ := kv.Data["email"].(string)
+	token, _ := kv.Data["token"].(string)
+	ak := protocol.AuthKey{Docker: &protocol.DockerAccess{}}
+	ak.Docker.Server = server
+	ak.Docker.Username = username
+	ak.Docker.Password = password
+	ak.Docker.Email = email
+	ak.Docker.Token = token
 	return &ak
 }
