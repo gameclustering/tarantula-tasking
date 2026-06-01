@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,12 +13,14 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/client"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	gossh "github.com/go-git/go-git/v6/plumbing/transport/ssh"
+	"github.com/skeema/knownhosts"
 	"golang.org/x/crypto/ssh"
 )
 
 type GitClient struct {
 	Path        string
 	PrivateKey  string // PEM-encoded SSH private key for remote operations
+	KHFile      string // path to known_hosts file; TOFU when set, InsecureIgnoreHostKey when empty
 	AuthorName  string
 	AuthorEmail string
 	repo        *git.Repository
@@ -38,7 +41,29 @@ func (g *GitClient) sshOpt() (client.Option, error) {
 	if err != nil {
 		return nil, err
 	}
-	auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+	if g.KHFile != "" {
+		hc, err := knownhosts.NewDB(g.KHFile)
+		if err != nil {
+			return nil, fmt.Errorf("knownhosts: %w", err)
+		}
+		auth.HostKeyCallback = ssh.HostKeyCallback(func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			icc := hc.HostKeyCallback()
+			err := icc(hostname, remote, key)
+			if knownhosts.IsHostKeyChanged(err) {
+				return err
+			}
+			if knownhosts.IsHostUnknown(err) {
+				f, err := os.OpenFile(g.KHFile, os.O_APPEND|os.O_WRONLY, 0600)
+				if err == nil {
+					defer f.Close()
+					_ = knownhosts.WriteKnownHost(f, hostname, remote, key)
+				}
+			}
+			return nil
+		})
+	} else {
+		auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+	}
 	return client.WithSSHAuth(auth), nil
 }
 

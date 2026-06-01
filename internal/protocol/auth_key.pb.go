@@ -34,6 +34,7 @@ type AuthKey struct {
 	Cert          string                 `protobuf:"bytes,9,opt,name=cert,proto3" json:"cert,omitempty"`
 	Aws           *AwsAccess             `protobuf:"bytes,10,opt,name=aws,proto3" json:"aws,omitempty"`
 	Az            *AzAccess              `protobuf:"bytes,11,opt,name=az,proto3" json:"az,omitempty"`
+	Docker        *DockerAccess          `protobuf:"bytes,12,opt,name=docker,proto3" json:"docker,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -145,11 +146,18 @@ func (x *AuthKey) GetAz() *AzAccess {
 	return nil
 }
 
+func (x *AuthKey) GetDocker() *DockerAccess {
+	if x != nil {
+		return x.Docker
+	}
+	return nil
+}
+
 var File_auth_key_proto protoreflect.FileDescriptor
 
 const file_auth_key_proto_rawDesc = "" +
 	"\n" +
-	"\x0eauth_key.proto\x12\bprotocol\x1a\x10gcp_access.proto\x1a\x10aws_access.proto\x1a\x0faz_access.proto\x1a\x10git_access.proto\x1a\x10sql_access.proto\"\xc7\x02\n" +
+	"\x0eauth_key.proto\x12\bprotocol\x1a\x10gcp_access.proto\x1a\x10aws_access.proto\x1a\x0faz_access.proto\x1a\x10git_access.proto\x1a\x10sql_access.proto\x1a\x13docker_access.proto\"\xf7\x02\n" +
 	"\aAuthKey\x12\x18\n" +
 	"\acontext\x18\x01 \x01(\tR\acontext\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
@@ -162,7 +170,8 @@ const file_auth_key_proto_rawDesc = "" +
 	"\x04cert\x18\t \x01(\tR\x04cert\x12%\n" +
 	"\x03aws\x18\n" +
 	" \x01(\v2\x13.protocol.AwsAccessR\x03aws\x12\"\n" +
-	"\x02az\x18\v \x01(\v2\x12.protocol.AzAccessR\x02azBO\n" +
+	"\x02az\x18\v \x01(\v2\x12.protocol.AzAccessR\x02az\x12.\n" +
+	"\x06docker\x18\f \x01(\v2\x16.protocol.DockerAccessR\x06dockerBO\n" +
 	"\x17com.icodesoftware.protoB\x0eAuthKeyFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (
@@ -179,12 +188,13 @@ func file_auth_key_proto_rawDescGZIP() []byte {
 
 var file_auth_key_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_auth_key_proto_goTypes = []any{
-	(*AuthKey)(nil),   // 0: protocol.AuthKey
-	(*GcpAccess)(nil), // 1: protocol.GcpAccess
-	(*GitAccess)(nil), // 2: protocol.GitAccess
-	(*SqlAccess)(nil), // 3: protocol.SqlAccess
-	(*AwsAccess)(nil), // 4: protocol.AwsAccess
-	(*AzAccess)(nil),  // 5: protocol.AzAccess
+	(*AuthKey)(nil),      // 0: protocol.AuthKey
+	(*GcpAccess)(nil),    // 1: protocol.GcpAccess
+	(*GitAccess)(nil),    // 2: protocol.GitAccess
+	(*SqlAccess)(nil),    // 3: protocol.SqlAccess
+	(*AwsAccess)(nil),    // 4: protocol.AwsAccess
+	(*AzAccess)(nil),     // 5: protocol.AzAccess
+	(*DockerAccess)(nil), // 6: protocol.DockerAccess
 }
 var file_auth_key_proto_depIdxs = []int32{
 	1, // 0: protocol.AuthKey.gcp:type_name -> protocol.GcpAccess
@@ -192,11 +202,12 @@ var file_auth_key_proto_depIdxs = []int32{
 	3, // 2: protocol.AuthKey.sql:type_name -> protocol.SqlAccess
 	4, // 3: protocol.AuthKey.aws:type_name -> protocol.AwsAccess
 	5, // 4: protocol.AuthKey.az:type_name -> protocol.AzAccess
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	6, // 5: protocol.AuthKey.docker:type_name -> protocol.DockerAccess
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_auth_key_proto_init() }
@@ -209,6 +220,7 @@ func file_auth_key_proto_init() {
 	file_az_access_proto_init()
 	file_git_access_proto_init()
 	file_sql_access_proto_init()
+	file_docker_access_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
