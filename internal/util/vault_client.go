@@ -108,6 +108,7 @@ func (a *VaultClient) toGcpKey(kv *vault.KVSecret) *protocol.AuthKey {
 	ak.Gcp.ProjectId = projectId
 	ak.Gcp.Zone = zone
 	ak.Gcp.Prefix = prefix
+	
 	ak.Gcp.MachineType = machineType
 	ak.Gcp.ImageType = imageType
 	ak.Gcp.User = user
