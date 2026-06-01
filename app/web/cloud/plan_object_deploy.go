@@ -44,6 +44,10 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("gcp auth key: %w", err)
 	}
+	dockerKey, err := v.Cluster().AuthKey("docker")
+	if err != nil {
+		return fmt.Errorf("docker auth key: %w", err)
+	}
 	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
 	if err := gcp.Auth(); err != nil {
 		return fmt.Errorf("gcp auth: %w", err)
@@ -52,14 +56,14 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 
 	for i := 1; i <= phase.InstanceNumber; i++ {
 		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
-		if err := v.deployOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, plan.AppRepo); err != nil {
+		if err := v.deployOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, plan.AppRepo, dockerKey.Docker); err != nil {
 			core.AppLog.Warn().Msgf("deploy on instance %s: %s", name, err.Error())
 		}
 	}
 	return v.insert(t.Meta)
 }
 
-func (v *PlanObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey string, user string, name string, repo *protocol.RepoObject) error {
+func (v *PlanObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey string, user string, name string, repo *protocol.RepoObject, docker *protocol.DockerAccess) error {
 	ins, err := gcp.Get(name)
 	if err != nil {
 		return fmt.Errorf("get instance: %w", err)
@@ -75,10 +79,17 @@ func (v *PlanObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey string, user
 	if ref == "" {
 		ref = repo.Branch
 	}
+	cred := docker.Token
+	if cred == "" {
+		cred = docker.Password
+	}
+	image := fmt.Sprintf("%s/%s:%s", docker.Username, repo.Name, ref)
 	var out bytes.Buffer
 	cmds := []string{
+		fmt.Sprintf("printf '%%s' '%s' | docker login %s -u %s --password-stdin", cred, docker.Server, docker.Username),
+		fmt.Sprintf("docker pull %s", image),
 		fmt.Sprintf("docker stop %s 2>/dev/null || true && docker rm %s 2>/dev/null || true", repo.Name, repo.Name),
-		fmt.Sprintf("docker run -d --name %s -P %s:%s", repo.Name, repo.Name, ref),
+		fmt.Sprintf("docker run -d --name %s -P %s", repo.Name, image),
 	}
 	for _, cmd := range cmds {
 		out.Reset()
