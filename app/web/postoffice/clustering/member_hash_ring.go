@@ -26,6 +26,7 @@ func (m *MemberHashRing) vNode(node core.Node, weight int) core.Node {
 }
 
 func (m *MemberHashRing) OnAdd(node core.Node) {
+	core.AppLog.Debug().Msgf("node rpc endpoint %s", node.RpcEndpoint)
 	pool := core.RpcConnPool{Target: node.RpcEndpoint, Auth: m.auth, CACert: m.caCert}
 	pool.Start()
 	added := make([]core.Node, 0, m.weight)
