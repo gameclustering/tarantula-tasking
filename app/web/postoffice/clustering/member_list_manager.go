@@ -67,6 +67,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	if err != nil {
 		return fmt.Errorf("generate tls cert: %w", err)
 	}
+	m.MemberHashRing.caCert = []byte(ak.Cert)
 	m.DataServiceProvider = &DataServiceProvider{RNode: rwNode, RSync: rwSync, seq: seq, vault: vt, auth: auth}
 	m.DataServiceProvider.TLSCert = tlsCert
 	m.DataServiceProvider.CACert = []byte(ak.Cert)
