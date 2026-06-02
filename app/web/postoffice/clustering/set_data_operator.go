@@ -74,7 +74,8 @@ start:
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(m.CACert)
 	creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
-	tcp, err := grpc.NewClient(sync.Remote, grpc.WithTransportCredentials(creds))
+	p := core.RpcConnPool{Auth: m.auth}
+	tcp, err := grpc.NewClient(sync.Remote, grpc.WithTransportCredentials(creds),grpc.WithUnaryInterceptor(p.OnCall), grpc.WithStreamInterceptor(p.OnStreaming))
 	if err != nil {
 		core.AppLog.Warn().Msgf("rpc connect error %s from %s", err.Error(), sync.Remote)
 		m.DWait.Done()
