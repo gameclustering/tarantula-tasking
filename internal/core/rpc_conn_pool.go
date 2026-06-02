@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"sync"
 	"time"
@@ -40,6 +42,7 @@ type RpcConnPool struct {
 	Target  string
 	Tag     string
 	NodeId  string
+	CACert  []byte // PEM-encoded CA certificate used to verify the server
 	MinSize int
 	MaxSize int
 	index   int
@@ -50,10 +53,9 @@ type RpcConnPool struct {
 
 func (p *RpcConnPool) connect(target string) (*grpc.ClientConn, error) {
 	retries := RPC_CONNECT_RETRIES
-	creds, err := credentials.NewClientTLSFromFile(CERT_NAME, "")
-	if err != nil {
-		panic(err.Error())
-	}
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(p.CACert)
+	creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
 	for {
 		tcp, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(p.onCall), grpc.WithStreamInterceptor(p.onStreaming))
 		if err != nil {

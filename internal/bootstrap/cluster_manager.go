@@ -252,7 +252,7 @@ func (c *ClusterManager) disconnect() error {
 
 func (c *ClusterManager) connect(host string) error {
 	c.cHost = fmt.Sprintf("%s:%d", host, core.RPC_PORT)
-	c.cPool = core.RpcConnPool{Target: c.cHost, Tag: c.App.Context(), NodeId: c.App.NodeId(), Auth: c.App.Auth}
+	c.cPool = core.RpcConnPool{Target: c.cHost, Tag: c.App.Context(), NodeId: c.App.NodeId(), Auth: c.App.Auth, CACert: c.App.CACert}
 	c.cPool.Start()
 	c.subscriptions = make(map[string]core.TopicListener)
 	c.transactions = make(map[string]core.TransactionListener)

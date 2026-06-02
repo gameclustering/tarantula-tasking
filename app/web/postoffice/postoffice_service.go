@@ -75,9 +75,5 @@ func (c *PostofficeService) loadAuthContext(vault *util.VaultClient) error {
 		return err
 	}
 	c.Auth = au
-	err = os.WriteFile(core.KEY_NAME, []byte(auth.Key), 0600)
-	if err != nil {
-		return err
-	}
 	return os.WriteFile(core.CERT_NAME, []byte(auth.Cert), 0600)
 }
