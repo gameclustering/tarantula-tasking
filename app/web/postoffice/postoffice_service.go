@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -63,8 +64,11 @@ func (s *PostofficeService) seedsHandler(w http.ResponseWriter, r *http.Request)
 	members := s.mm.Members()
 	seeds := make([]string, 0, len(members))
 	for _, m := range members {
-		parts := strings.Split(m.Address(), ":")
-		seeds = append(seeds, parts[0])
+		host, _, err := net.SplitHostPort(m.Address())
+		if err != nil {
+			continue
+		}
+		seeds = append(seeds, host)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(seeds)
@@ -101,7 +105,7 @@ func resolveSeeds(bootstrap string) []string {
 		return nil
 	}
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(bootstrap + "/postoffice/seeds")
+	resp, err := client.Get(strings.TrimRight(bootstrap, "/") + "/postoffice/seeds")
 	if err != nil {
 		core.AppLog.Info().Msgf("cluster bootstrap unreachable at %s, starting as first node: %s", bootstrap, err.Error())
 		return nil
