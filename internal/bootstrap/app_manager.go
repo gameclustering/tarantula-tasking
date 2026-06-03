@@ -15,10 +15,11 @@ import (
 )
 
 type AppManager struct {
-	Auth core.Authenticator
-	Sql  persistence.Postgresql
-	F    core.Env
-	seq  core.Sequence
+	Auth   core.Authenticator
+	CACert []byte // PEM-encoded CA cert; used by gRPC client to verify the postoffice server
+	Sql    persistence.Postgresql
+	F      core.Env
+	seq    core.Sequence
 
 	cluster *ClusterManager
 
@@ -216,5 +217,6 @@ func (c *AppManager) loadAuthContext() error {
 		return err
 	}
 	c.Auth = au
+	c.CACert = []byte(auth.Cert)
 	return os.WriteFile(core.CERT_NAME, []byte(auth.Cert), 0600)
 }

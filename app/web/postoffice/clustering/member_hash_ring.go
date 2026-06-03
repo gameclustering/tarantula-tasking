@@ -16,6 +16,7 @@ type MemberHashRing struct {
 	WNode  chan<- RingUpdate
 	hLock  *sync.Mutex
 	auth   core.Authenticator
+	caCert []byte
 }
 
 func (m *MemberHashRing) vNode(node core.Node, weight int) core.Node {
@@ -25,7 +26,8 @@ func (m *MemberHashRing) vNode(node core.Node, weight int) core.Node {
 }
 
 func (m *MemberHashRing) OnAdd(node core.Node) {
-	pool := core.RpcConnPool{Target: node.RpcEndpoint, Auth: m.auth}
+	core.AppLog.Debug().Msgf("node added rpc endpoint %s %s", node.RpcEndpoint, m.caCert)
+	pool := core.RpcConnPool{Target: node.RpcEndpoint, Auth: m.auth, CACert: m.caCert}
 	pool.Start()
 	added := make([]core.Node, 0, m.weight)
 	for w := range m.weight {
@@ -61,6 +63,7 @@ func (m *MemberHashRing) OnRemove(node core.Node) {
 }
 
 func (m *MemberHashRing) OnUpdate(node core.Node) {
+	core.AppLog.Debug().Msgf("node updated rpc endpoint %s %s", node.RpcEndpoint, m.caCert)
 	for i, n := range m.nodes {
 		if strings.HasPrefix(n.Name, node.Name) {
 			n.Meta = node.Meta

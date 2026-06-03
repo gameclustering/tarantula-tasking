@@ -56,10 +56,25 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	}
 	m.meta = meta
 	m.Memberlist = list
-	go m.Listen()
 
+	localIP := m.LocalNode().Addr.String()
+	ak, err := vt.Load(m.Ctx, "auth")
+	if err != nil {
+		return fmt.Errorf("load auth for tls: %w", err)
+	}
+	tlsCert, err := util.CASignedTLS([]byte(ak.Cert), []byte(ak.Key), []string{localIP}, 365*24*time.Hour)
+	if err != nil {
+		return fmt.Errorf("generate tls cert: %w", err)
+	}
+	m.MemberHashRing.caCert = []byte(ak.Cert)
+	// Start Listen after caCert is set: memberlist.Create fires NodeJoin for the local node
+	// into the buffered channel; starting Listen before caCert is set means OnAdd runs with
+	// nil CACert, producing an RpcConnPool that fails TLS handshakes.
+	go m.Listen()
 	m.DataServiceProvider = &DataServiceProvider{RNode: rwNode, RSync: rwSync, seq: seq, vault: vt, auth: auth}
-	m.DataServiceProvider.rpcEndpoint = fmt.Sprintf("%s:%d", string(m.LocalNode().Addr.String()), core.RPC_PORT)
+	m.DataServiceProvider.TLSCert = tlsCert
+	m.DataServiceProvider.CACert = []byte(ak.Cert)
+	m.DataServiceProvider.rpcEndpoint = fmt.Sprintf("%s:%d", localIP, core.RPC_PORT)
 	m.Mll = &m.MemberListListener
 	m.Mll.DWait.Add(1)
 	go m.DataServiceProvider.Start(m.StoreDir, m.Ctx)

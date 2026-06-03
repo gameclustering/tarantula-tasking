@@ -2,6 +2,7 @@ package clustering
 
 import (
 	context "context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -31,6 +32,8 @@ type DataServiceProvider struct {
 	Mll         *MemberListListener
 	backRing    NodeRing
 	rpcEndpoint string
+	TLSCert     tls.Certificate // leaf cert generated at startup for the gRPC server
+	CACert      []byte          // PEM CA cert; passed to inter-node RpcConnPools for server verification
 	seq         core.Sequence
 	auth        core.Authenticator
 	//write worker chan
@@ -138,10 +141,7 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	if err != nil {
 		panic(err)
 	}
-	creds, err := credentials.NewServerTLSFromFile(core.CERT_NAME, core.KEY_NAME)
-	if err != nil {
-		panic(err.Error())
-	}
+	creds := credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{c.TLSCert}})
 	c.Local = &persistence.BadgerLocal{Path: path, InMemory: false, LogDisabled: false, GcEnabled: true}
 	err = c.Local.Open()
 	if err != nil {
@@ -151,7 +151,7 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	c.DRequest = make(chan TopicRequest, NODE_EVENT_BUFFER_SIZE)
 	c.listeners = make(map[string]ReceiverAsync) //chan *protocol.Topic)
 	c.listenerPool = make([]string, 0)
-	c.subscriptions = SubscriptionRegistry{topicEnds: make(map[core.TopicKey]map[string]core.Subscription), cPools: make(map[core.TopicKey]*core.RpcConnPool), auth: c.auth}
+	c.subscriptions = SubscriptionRegistry{topicEnds: make(map[core.TopicKey]map[string]core.Subscription), cPools: make(map[core.TopicKey]*core.RpcConnPool), auth: c.auth, caCert: c.CACert}
 
 	c.DSet = make(chan SetData, NODE_EVENT_BUFFER_SIZE)
 	c.DPull = make(chan core.RingSync, NODE_EVENT_BUFFER_SIZE)

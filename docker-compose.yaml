@@ -48,6 +48,8 @@ services:
       - "80:80"
     depends_on:
       - admin
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - tarantula-app-net
 
