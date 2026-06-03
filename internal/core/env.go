@@ -35,7 +35,7 @@ type Env struct {
 	LogTruncated    bool     `json:"LogTruncated"`
 	LogDir          string   `json:"LogDir"`
 	AuthLevel       int32    `json:"AuthLevel"`
-	ClusterSeed     []string `json:"ClusterSeed"`
+	ClusterBootstrap string `json:"ClusterBootstrap"`
 	IsClusterMember bool     `json:"IsClusterMember"`
 
 	Vlt Vault `json:"Vlt"`
@@ -86,6 +86,11 @@ func (f *Env) Load(fn string) error {
 	}
 
 	//f.Vlt = Vault{}
+	c, exists = os.LookupEnv("CLUSTER_BOOTSTRAP")
+	if exists {
+		f.ClusterBootstrap = c
+	}
+
 	c, exists = os.LookupEnv("VAULT_HOST")
 	if exists {
 		f.Vlt.Host = c
