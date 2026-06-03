@@ -56,7 +56,6 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	}
 	m.meta = meta
 	m.Memberlist = list
-	go m.Listen()
 
 	localIP := m.LocalNode().Addr.String()
 	ak, err := vt.Load(m.Ctx, "auth")
@@ -68,6 +67,10 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 		return fmt.Errorf("generate tls cert: %w", err)
 	}
 	m.MemberHashRing.caCert = []byte(ak.Cert)
+	// Start Listen after caCert is set: memberlist.Create fires NodeJoin for the local node
+	// into the buffered channel; starting Listen before caCert is set means OnAdd runs with
+	// nil CACert, producing an RpcConnPool that fails TLS handshakes.
+	go m.Listen()
 	m.DataServiceProvider = &DataServiceProvider{RNode: rwNode, RSync: rwSync, seq: seq, vault: vt, auth: auth}
 	m.DataServiceProvider.TLSCert = tlsCert
 	m.DataServiceProvider.CACert = []byte(ak.Cert)
