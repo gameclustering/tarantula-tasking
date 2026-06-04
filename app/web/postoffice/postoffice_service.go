@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -55,23 +54,9 @@ func (s *PostofficeService) Start(env core.Env) error {
 	s.mm = &m
 	s.mm.DWait.Wait()
 	s.started = true
-	http.HandleFunc("/postoffice/seeds", s.seedsHandler)
+	http.HandleFunc("/postoffice/seeds", bootstrap.Logging(&ClusterSeedGet{s}))
 	core.AppLog.Info().Msgf("postoffice service started %s %s", env.HttpBinding, env.HomeDir)
 	return nil
-}
-
-func (s *PostofficeService) seedsHandler(w http.ResponseWriter, r *http.Request) {
-	members := s.mm.Members()
-	seeds := make([]string, 0, len(members))
-	for _, m := range members {
-		host, _, err := net.SplitHostPort(m.Address())
-		if err != nil {
-			continue
-		}
-		seeds = append(seeds, host)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(seeds)
 }
 
 func (s *PostofficeService) Shutdown() {
