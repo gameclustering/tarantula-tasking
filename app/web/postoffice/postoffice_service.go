@@ -41,7 +41,7 @@ func (s *PostofficeService) Start(env core.Env) error {
 			panic(err)
 		}
 		time.Sleep(3 * time.Second)
-		core.AppLog.Warn().Msgf("load credentials from %s retries remaining %d", vault.Host, retries)
+		core.AppLog.Warn().Msgf("load credentials from %s retries remaining %d with %s", vault.Host, retries, err.Error())
 	}
 	seeds := resolveSeeds(env.ClusterBootstrap)
 	m := clustering.MemberlistManager{StoreDir: fmt.Sprintf("%s/%s", env.HomeDir, env.GroupName), Ctx: s.F.PresenceCtx()}
