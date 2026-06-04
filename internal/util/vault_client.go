@@ -64,6 +64,8 @@ func (v *VaultClient) Load(mountPath string, path string) (*protocol.AuthKey, er
 		return v.toGitKey(kv), nil
 	case "docker":
 		return v.toDockerKey(kv), nil
+	case "vps":
+		return v.toVpsKey(kv), nil
 	}
 	return &ak, fmt.Errorf("key path not existed")
 }
@@ -173,5 +175,14 @@ func (a *VaultClient) toDockerKey(kv *vault.KVSecret) *protocol.AuthKey {
 	ak.Docker.Password = password
 	ak.Docker.Email = email
 	ak.Docker.Token = token
+	return &ak
+}
+
+func (a VaultClient) toVpsKey(kv *vault.KVSecret) *protocol.AuthKey {
+	ssh, _ := kv.Data["ssh"].(string)
+	user, _ := kv.Data["user"].(string)
+	ak := protocol.AuthKey{Docker: &protocol.DockerAccess{}}
+	ak.Vps.Ssh = ssh
+	ak.Vps.User = user
 	return &ak
 }
