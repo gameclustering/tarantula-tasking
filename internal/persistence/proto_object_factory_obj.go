@@ -9,13 +9,13 @@ import (
 
 const (
 	LOGIN_OBJECT_ID           uint32 = 1
-	LOGIN_OBJECT_FACTORY_NAME        = "obj_login"
+	LOGIN_OBJECT_FACTORY_NAME string = "obj_login"
 
 	VM_OBJECT_ID           uint32 = 2
-	VM_OBJECT_FACTORY_NAME        = "obj_vm"
+	VM_OBJECT_FACTORY_NAME string = "obj_vm"
 
 	REPOSITORY_OBJECT_ID           uint32 = 3
-	REPOSITORY_OBJECT_FACTORY_NAME        = "obj_repository"
+	REPOSITORY_OBJECT_FACTORY_NAME string = "obj_repository"
 )
 
 type MessageObject func() proto.Message

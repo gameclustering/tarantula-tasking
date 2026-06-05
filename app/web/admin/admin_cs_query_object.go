@@ -30,7 +30,7 @@ func (s *CSQueryObject) Request(rs core.OnSession, w http.ResponseWriter, r *htt
 	}
 	mf, ok := mc().(core.ProtoObjectFactory)
 	if !ok {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "proto factory not existed"}))
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: fmt.Sprintf("proto factory %s not existed", topic)}))
 		return
 	}
 	me := mf.Query()
