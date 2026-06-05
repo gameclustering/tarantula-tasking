@@ -12,5 +12,6 @@ type ProtoObjectFactory interface {
 	Object(data []byte) (*protocol.KeyValue, error)
 	Message(obj *protocol.KeyValue) (proto.Message, error)
 	FromMessage(m proto.Message, h *protocol.Header) (*protocol.KeyValue, error)
+	Header(cid uint32) *protocol.Header
 	QueryFactory
 }
