@@ -10,7 +10,7 @@ import (
 func TestTaskBuilder(t *testing.T) {
 	login := protocol.LoginObject{Name: "p100", Password: "passsword", SystemId: 100, AccessControl: 1, ReferenceId: 1}
 	mf := NewLoginObjectFactory()
-	kv, _ := mf.FromLoginObject(&login)
+	kv, _ := mf.FromMessage(&login,mf.Header(LOGIN_OBJECT_ID))
 	tb := NewTaskBuilder(&protocol.Meta{NodeId: "node1", Tag: "presence", Name: "register", Id: 1})
 	jb := tb.Job(&protocol.Meta{NodeId: "node1", Tag: "", Name: "register", Id: 1})
 	jb.Transaction().Meta(&protocol.Meta{NodeId: "node1", Tag: "inventory", Name: "grant", TaskId: 1, Id: 10}).Object(kv).Build()

@@ -4,14 +4,11 @@ import (
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func NewLoginObjectFactory() *LoginObjectFactory {
 	mf := LoginObjectFactory{}
-
 	mf.Mo = func() proto.Message { return &protocol.LoginObject{} }
-
 	mq := LoginObjectQuery{}
 	mq.Id = LOGIN_OBJECT_FACTORY_NAME
 	mq.FactoryId = core.OBJECT_FACTORY_ID
@@ -25,13 +22,11 @@ type LoginObjectFactory struct {
 	ProtoObjectFactoryObj
 }
 
-func (p *LoginObjectFactory) FromLoginObject(login *protocol.LoginObject) (*protocol.KeyValue, error) {
-	kv := protocol.KeyValue{}
-	kv.Key = &protocol.Key{Array: []byte(login.Name), Header: &protocol.Header{FactoryId: core.OBJECT_FACTORY_ID, ClassId: LOGIN_OBJECT_ID, Updatable: true}}
-	obj, err := anypb.New(login)
+func (p *LoginObjectFactory) FromLoginObject(login *protocol.LoginObject) (*protocol.Request, error) {
+	obj, err := p.FromMessage(login, p.Header(LOGIN_OBJECT_ID))
 	if err != nil {
-		return &kv, err
+		return nil, err
 	}
-	kv.Message = obj
-	return &kv, nil
+	obj.Key.Array = []byte(login.Name)
+	return p.Request(obj)
 }

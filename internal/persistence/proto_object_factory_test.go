@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"gameclustering.com/internal/core"
@@ -67,4 +68,10 @@ func TestLoginObjectFactory(t *testing.T) {
 		t.Errorf("name should be same")
 	}
 
+	pkv, err := mf.FromMessage(moy, mf.Header(LOGIN_OBJECT_ID))
+	if err != nil {
+		t.Errorf("should not be err %s", err.Error())
+	}
+	pkv.Key.Array = []byte(moy.Name)
+	fmt.Printf("PKey %v\n", pkv.Key.Array)
 }
