@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -41,7 +40,7 @@ func (s *PostofficeService) Start(env core.Env) error {
 			panic(err)
 		}
 		time.Sleep(3 * time.Second)
-		core.AppLog.Warn().Msgf("load credentials from %s retries remaining %d", vault.Host, retries)
+		core.AppLog.Warn().Msgf("load credentials from %s retries remaining %d with %s", vault.Host, retries, err.Error())
 	}
 	seeds := resolveSeeds(env.ClusterBootstrap)
 	m := clustering.MemberlistManager{StoreDir: fmt.Sprintf("%s/%s", env.HomeDir, env.GroupName), Ctx: s.F.PresenceCtx()}
@@ -55,23 +54,9 @@ func (s *PostofficeService) Start(env core.Env) error {
 	s.mm = &m
 	s.mm.DWait.Wait()
 	s.started = true
-	http.HandleFunc("/postoffice/seeds", s.seedsHandler)
+	http.HandleFunc("/postoffice/seeds", bootstrap.Logging(&ClusterSeedGet{s}))
 	core.AppLog.Info().Msgf("postoffice service started %s %s", env.HttpBinding, env.HomeDir)
 	return nil
-}
-
-func (s *PostofficeService) seedsHandler(w http.ResponseWriter, r *http.Request) {
-	members := s.mm.Members()
-	seeds := make([]string, 0, len(members))
-	for _, m := range members {
-		host, _, err := net.SplitHostPort(m.Address())
-		if err != nil {
-			continue
-		}
-		seeds = append(seeds, host)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(seeds)
 }
 
 func (s *PostofficeService) Shutdown() {

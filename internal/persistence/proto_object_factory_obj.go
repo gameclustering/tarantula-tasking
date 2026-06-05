@@ -68,7 +68,7 @@ func (p *ProtoObjectFactoryObj) FromMessage(m proto.Message, h *protocol.Header)
 }
 
 func (p *ProtoObjectFactoryObj) Header(cid uint32) *protocol.Header {
-	h := protocol.Header{FactoryId: core.EVENT_FACTORY_ID}
+	h := protocol.Header{FactoryId: core.OBJECT_FACTORY_ID}
 	h.ClassId = cid
 	return &h
 }

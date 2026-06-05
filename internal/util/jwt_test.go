@@ -32,8 +32,9 @@ func onVerify(h *core.JwtHeader, p *core.JwtPayload) error {
 
 func TestSum(t *testing.T) {
 	jwt := JwtHMac{Alg: "SHS256"}
-	key := make([]byte, 32)
+	key := make([]byte, core.JWT_KEY_SIZE)
 	rand.Read(key)
+	fmt.Printf("JWT %s\n", KeyToBase64(key))
 	jwt.HMacFromKey(key)
 	token, _ := jwt.Token(onToken)
 	fmt.Printf("Len : %d\n", len(token))
