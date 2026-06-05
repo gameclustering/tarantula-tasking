@@ -96,7 +96,14 @@ func (s *AdminService) SaveLogin(login *protocol.LoginObject) error {
 }
 
 func (s *AdminService) LoadLogin(login *protocol.LoginObject) error {
-	err := s.Sql.Query(func(rows pgx.Rows) error {
+	ef := persistence.NewLoginObjectFactory()
+	req, err := ef.FromLoginObject(login)
+	req.Opt = core.GET_DATA_REQUEST
+	_, err = s.Cluster().Request(req)
+	if err != nil {
+		core.AppLog.Debug().Msgf("load error %s", err.Error())
+	}
+	err = s.Sql.Query(func(rows pgx.Rows) error {
 		var hash string
 		var id int32
 		var accessControl int32
