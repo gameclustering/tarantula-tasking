@@ -383,6 +383,9 @@ func (c *DataServiceProvider) query(q core.Query, stream grpc.ServerStreamingSer
 	dset := make([]*protocol.Data, 0)
 	//core.AppLog.Debug().Msgf("query : %d %d %d %d", q.QLimit(), q.QOffset(), q.QFactoryId(), q.QClassId())
 	limit := q.QLimit()
+	if limit<= 0{
+		limit = 10
+	}
 	offset := q.QOffset()
 	c.Local.Db.View(func(txn *badger.Txn) error {
 		op := badger.IteratorOptions{PrefetchSize: 100, PrefetchValues: false, Reverse: false}
