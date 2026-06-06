@@ -15,6 +15,7 @@ import (
 type vpsSetupRequest struct {
 	IP       string `json:"ip"`
 	Password string `json:"password"`
+	Vendor   string `json:"vendor"`
 }
 
 type AdminVpsSetup struct {
