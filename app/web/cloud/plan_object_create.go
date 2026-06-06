@@ -49,12 +49,14 @@ func (v *PlanObjectCreate) reserve(t *protocol.Transaction) error {
 	}
 	defer gcp.Close()
 
-	name := fmt.Sprintf("%s-%02d", phase.Prefix, 1)
-	core.AppLog.Info().Msgf("creating instance %s", name)
-	if err := gcp.Insert(name, phase.MachineType, phase.ImageType); err != nil {
-		return fmt.Errorf("create instance %s: %w", name, err)
+	for i := 1; i <= phase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
+		core.AppLog.Info().Msgf("creating instance %s", name)
+		if err := gcp.Insert(name, phase.MachineType, phase.ImageType); err != nil {
+			return fmt.Errorf("create instance %s: %w", name, err)
+		}
+		core.AppLog.Info().Msgf("instance %s created", name)
 	}
-	core.AppLog.Info().Msgf("instance %s created", name)
 	return v.insert(t.Meta)
 }
 
@@ -94,10 +96,12 @@ func (v *PlanObjectCreate) cancel(t *protocol.Transaction) error {
 	}
 	defer gcp.Close()
 
-	name := fmt.Sprintf("%s-%02d", phase.Prefix, 1)
-	core.AppLog.Info().Msgf("deleting instance %s (cancel rollback)", name)
-	if err := gcp.Delete(name); err != nil {
-		core.AppLog.Warn().Msgf("delete instance %s: %s", name, err)
+	for i := 1; i <= phase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
+		core.AppLog.Info().Msgf("deleting instance %s (cancel rollback)", name)
+		if err := gcp.Delete(name); err != nil {
+			core.AppLog.Warn().Msgf("delete instance %s: %s", name, err)
+		}
 	}
 	return v.insert(t.Meta)
 }

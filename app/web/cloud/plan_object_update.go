@@ -63,9 +63,11 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	}
 	keyFile.Close()
 
-	name := fmt.Sprintf("%s-%02d", phase.Prefix, 1)
-	if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
-		core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
+	for i := 1; i <= phase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
+		if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
+			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
+		}
 	}
 	return v.insert(t.Meta)
 }
