@@ -51,6 +51,10 @@ func (v *PlanObjectCreate) reserve(t *protocol.Transaction) error {
 
 	for i := 1; i <= phase.InstanceNumber; i++ {
 		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
+		if _, err := gcp.Get(name); err == nil {
+			core.AppLog.Info().Msgf("instance %s already exists, skipping", name)
+			continue
+		}
 		core.AppLog.Info().Msgf("creating instance %s", name)
 		if err := gcp.Insert(name, phase.MachineType, phase.ImageType); err != nil {
 			return fmt.Errorf("create instance %s: %w", name, err)
