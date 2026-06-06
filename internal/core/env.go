@@ -99,5 +99,9 @@ func (f *Env) Load(fn string) error {
 	if exists {
 		f.Vlt.Token = c
 	}
+	c, exists = os.LookupEnv("HTTP_BINDING")
+	if exists {
+		f.HttpBinding = c
+	}
 	return nil
 }
