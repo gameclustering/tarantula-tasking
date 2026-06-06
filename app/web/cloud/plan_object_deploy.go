@@ -144,9 +144,8 @@ func (v *PlanObjectDeploy) runContainer(ssh util.SshClient, instanceName, svcNam
 		flags = append(flags, fmt.Sprintf("-e HTTP_BINDING='%s'", httpBinding))
 	}
 	if strings.Contains(svcName, "postoffice") {
-		if clusterBootstrap != "" {
-			flags = append(flags, fmt.Sprintf("-e CLUSTER_BOOTSTRAP='%s'", clusterBootstrap))
-		}
+		// always set CLUSTER_BOOTSTRAP (even empty for node 1) to override the baked-in conf value
+		flags = append(flags, fmt.Sprintf("-e CLUSTER_BOOTSTRAP='%s'", clusterBootstrap))
 	} else {
 		flags = append(flags, "-e POST_OFFICE_HOST=127.0.0.1")
 	}
