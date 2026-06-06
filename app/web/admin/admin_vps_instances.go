@@ -37,9 +37,13 @@ func (s *AdminVpsInstances) Request(rs core.OnSession, w http.ResponseWriter, r 
 	va := util.VultrApi{ApiKey: vpsKey.Vps.ApiKey}
 	instances, err := va.ListInstances()
 	if err != nil {
+		var sum int
+		for _, b := range []byte(vpsKey.Vps.ApiKey) {
+			sum += int(b)
+		}
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: fmt.Sprintf(
-			"failed to list instances: %s [diag: keylen=%d sshlen=%d user=%q]",
-			err.Error(), len(vpsKey.Vps.ApiKey), len(vpsKey.Vps.Ssh), vpsKey.Vps.User)}))
+			"failed to list instances: %s [diag: keylen=%d checksum=%d]",
+			err.Error(), len(vpsKey.Vps.ApiKey), sum)}))
 		return
 	}
 	w.Write(util.ToJson(instances))
