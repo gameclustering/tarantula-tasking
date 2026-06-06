@@ -25,6 +25,7 @@ type VpsAccess struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ssh           string                 `protobuf:"bytes,1,opt,name=ssh,proto3" json:"ssh,omitempty"`
 	User          string                 `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	ApiKey        string                 `protobuf:"bytes,3,opt,name=apiKey,proto3" json:"apiKey,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -73,14 +74,22 @@ func (x *VpsAccess) GetUser() string {
 	return ""
 }
 
+func (x *VpsAccess) GetApiKey() string {
+	if x != nil {
+		return x.ApiKey
+	}
+	return ""
+}
+
 var File_vps_access_proto protoreflect.FileDescriptor
 
 const file_vps_access_proto_rawDesc = "" +
 	"\n" +
-	"\x10vps_access.proto\x12\bprotocol\"1\n" +
+	"\x10vps_access.proto\x12\bprotocol\"I\n" +
 	"\tVpsAccess\x12\x10\n" +
 	"\x03ssh\x18\x01 \x01(\tR\x03ssh\x12\x12\n" +
-	"\x04user\x18\x02 \x01(\tR\x04userBQ\n" +
+	"\x04user\x18\x02 \x01(\tR\x04user\x12\x16\n" +
+	"\x06apiKey\x18\x03 \x01(\tR\x06apiKeyBQ\n" +
 	"\x17com.icodesoftware.protoB\x10VpsAccessFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (
