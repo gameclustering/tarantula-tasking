@@ -40,7 +40,7 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
-	phase := cfg.Resolve(plan.Env, "build")
+	phase := cfg.Resolve(plan.Env, "deploy")
 
 	gcpKey, err := v.Cluster().AuthKey("gcp")
 	if err != nil {

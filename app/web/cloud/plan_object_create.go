@@ -37,7 +37,7 @@ func (v *PlanObjectCreate) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
-	phase := cfg.Resolve(plan.Env, "build")
+	phase := cfg.Resolve(plan.Env, "deploy")
 
 	gcpKey, err := v.Cluster().AuthKey("gcp")
 	if err != nil {
@@ -82,7 +82,7 @@ func (v *PlanObjectCreate) cancel(t *protocol.Transaction) error {
 		core.AppLog.Warn().Msgf("cancel deploy config: %s", err)
 		return v.insert(t.Meta)
 	}
-	phase := cfg.Resolve(plan.Env, "build")
+	phase := cfg.Resolve(plan.Env, "deploy")
 
 	gcpKey, err := v.Cluster().AuthKey("gcp")
 	if err != nil {
