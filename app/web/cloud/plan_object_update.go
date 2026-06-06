@@ -81,7 +81,7 @@ func (v *PlanObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user st
 	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
 
 	// New instances take 30-90s to boot; retry SSH until ready.
-	const maxWait = 2 * time.Minute
+	const maxWait = 5 * time.Minute
 	deadline := time.Now().Add(maxWait)
 	for {
 		if err := ssh.WithKey(); err == nil {

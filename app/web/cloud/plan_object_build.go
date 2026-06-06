@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
@@ -68,8 +69,16 @@ func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user s
 	}
 	natIP := ins.GetNetworkInterfaces()[0].AccessConfigs[0].GetNatIP()
 	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
-	if err := ssh.WithKey(); err != nil {
-		return fmt.Errorf("ssh connect: %w", err)
+	const maxWait = 5 * time.Minute
+	deadline := time.Now().Add(maxWait)
+	for {
+		if err := ssh.WithKey(); err == nil {
+			break
+		} else if time.Now().After(deadline) {
+			return fmt.Errorf("ssh connect: timed out: %w", err)
+		}
+		core.AppLog.Debug().Msgf("build [%s]: waiting for SSH...", name)
+		time.Sleep(10 * time.Second)
 	}
 	defer ssh.Close()
 
