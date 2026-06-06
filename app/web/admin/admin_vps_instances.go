@@ -1,8 +1,6 @@
-
 package main
 
 import (
-	"fmt"
 	"net/http"
 
 	"gameclustering.com/internal/core"
@@ -37,13 +35,7 @@ func (s *AdminVpsInstances) Request(rs core.OnSession, w http.ResponseWriter, r 
 	va := util.VultrApi{ApiKey: vpsKey.Vps.ApiKey}
 	instances, err := va.ListInstances()
 	if err != nil {
-		var sum int
-		for _, b := range []byte(vpsKey.Vps.ApiKey) {
-			sum += int(b)
-		}
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: fmt.Sprintf(
-			"failed to list instances: %s [diag: keylen=%d checksum=%d]",
-			err.Error(), len(vpsKey.Vps.ApiKey), sum)}))
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "failed to list instances: " + err.Error()}))
 		return
 	}
 	w.Write(util.ToJson(instances))
