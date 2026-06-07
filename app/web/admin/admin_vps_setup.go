@@ -33,12 +33,12 @@ func (s *AdminVpsSetup) Request(rs core.OnSession, w http.ResponseWriter, r *htt
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "invalid request body"}))
 		return
 	}
-	if req.IP == "" || req.Password == "" {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "ip and password are required"}))
+	if req.Vendor == "" || req.IP == "" || req.Password == "" {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "vendor, ip and password are required"}))
 		return
 	}
 
-	vpsKey, err := s.Cluster().AuthKey("vps")
+	vpsKey, err := s.Cluster().AuthKey(req.Vendor)
 	if err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "failed to load vps key: " + err.Error()}))
 		return
