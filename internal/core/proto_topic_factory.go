@@ -12,5 +12,6 @@ type ProtoTopicFactory interface {
 	Topic(data []byte) (*protocol.Topic, error)
 	Message(topic *protocol.Topic) (proto.Message, error)
 	FromMessage(m proto.Message, h *protocol.Header) (*protocol.Topic, error)
+	Header(cid uint32) *protocol.Header
 	QueryFactory
 }

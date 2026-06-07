@@ -40,7 +40,7 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
-	phase := cfg.Resolve(plan.Env, "build")
+	phase := cfg.Resolve(plan.Env, "deploy")
 
 	gcpKey, err := v.Cluster().AuthKey("gcp")
 	if err != nil {
@@ -63,9 +63,11 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	}
 	keyFile.Close()
 
-	name := fmt.Sprintf("%s-%02d", phase.Prefix, 1)
-	if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
-		core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
+	for i := 1; i <= phase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
+		if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
+			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
+		}
 	}
 	return v.insert(t.Meta)
 }
@@ -79,7 +81,7 @@ func (v *PlanObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user st
 	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
 
 	// New instances take 30-90s to boot; retry SSH until ready.
-	const maxWait = 2 * time.Minute
+	const maxWait = 5 * time.Minute
 	deadline := time.Now().Add(maxWait)
 	for {
 		if err := ssh.WithKey(); err == nil {

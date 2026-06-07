@@ -6,13 +6,20 @@ import (
 	"os"
 )
 
+type GcpServiceConfig struct {
+	Name        string `json:"name"`
+	Network     string `json:"network"`
+	HttpBinding string `json:"httpBinding"`
+}
+
 type GcpPhaseConfig struct {
-	Zone           string `json:"zone"`
-	Prefix         string `json:"prefix"`
-	MachineType    string `json:"machineType"`
-	ImageType      string `json:"imageType"`
-	InstanceNumber int    `json:"instanceNumber"`
-	Description    string `json:"description"`
+	Zone           string             `json:"zone"`
+	Prefix         string             `json:"prefix"`
+	MachineType    string             `json:"machineType"`
+	ImageType      string             `json:"imageType"`
+	InstanceNumber int                `json:"instanceNumber"`
+	Description    string             `json:"description"`
+	Services       []GcpServiceConfig `json:"services"`
 }
 
 type GcpEnvConfig struct {
@@ -86,6 +93,9 @@ func mergeGcpPhase(primary, fallback GcpPhaseConfig) GcpPhaseConfig {
 	}
 	if primary.Description == "" {
 		primary.Description = fallback.Description
+	}
+	if len(primary.Services) == 0 {
+		primary.Services = fallback.Services
 	}
 	return primary
 }

@@ -2,7 +2,6 @@ package util
 
 import (
 	"context"
-	"fmt"
 
 	"gameclustering.com/internal/protocol"
 	vault "github.com/hashicorp/vault/api"
@@ -64,10 +63,9 @@ func (v *VaultClient) Load(mountPath string, path string) (*protocol.AuthKey, er
 		return v.toGitKey(kv), nil
 	case "docker":
 		return v.toDockerKey(kv), nil
-	case "vps":
+	default:
 		return v.toVpsKey(kv), nil
 	}
-	return &ak, fmt.Errorf("key path not existed")
 }
 
 func (a *VaultClient) toAuthKey(kv *vault.KVSecret) *protocol.AuthKey {
@@ -88,10 +86,12 @@ func (a *VaultClient) toSqlKey(kv *vault.KVSecret) *protocol.AuthKey {
 	user, _ := kv.Data["user"].(string)
 	pwd, _ := kv.Data["password"].(string)
 	host, _ := kv.Data["host"].(string)
+	cert, _ := kv.Data["cert"].(string)
 	ak := protocol.AuthKey{Sql: &protocol.SqlAccess{}}
 	ak.Sql.User = user
 	ak.Sql.Password = pwd
 	ak.Sql.Host = host
+	ak.Sql.Cert = cert
 	return &ak
 }
 
@@ -181,8 +181,12 @@ func (a *VaultClient) toDockerKey(kv *vault.KVSecret) *protocol.AuthKey {
 func (a VaultClient) toVpsKey(kv *vault.KVSecret) *protocol.AuthKey {
 	ssh, _ := kv.Data["ssh"].(string)
 	user, _ := kv.Data["user"].(string)
+	apiKey, _ := kv.Data["apiKey"].(string)
+	password,_ :=kv.Data["password"].(string)
 	ak := protocol.AuthKey{Vps: &protocol.VpsAccess{}}
 	ak.Vps.Ssh = ssh
 	ak.Vps.User = user
+	ak.Vps.ApiKey = apiKey
+	ak.Vps.Password = password //SUDO password in case running sudo permission locally
 	return &ak
 }

@@ -9,13 +9,13 @@ import (
 
 const (
 	LOGIN_OBJECT_ID           uint32 = 1
-	LOGIN_OBJECT_FACTORY_NAME        = "obj_login"
+	LOGIN_OBJECT_FACTORY_NAME string = "obj_login"
 
 	VM_OBJECT_ID           uint32 = 2
-	VM_OBJECT_FACTORY_NAME        = "obj_vm"
+	VM_OBJECT_FACTORY_NAME string = "obj_vm"
 
 	REPOSITORY_OBJECT_ID           uint32 = 3
-	REPOSITORY_OBJECT_FACTORY_NAME        = "obj_repository"
+	REPOSITORY_OBJECT_FACTORY_NAME string = "obj_repository"
 )
 
 type MessageObject func() proto.Message
@@ -44,7 +44,7 @@ func (p *ProtoObjectFactoryObj) Object(data []byte) (*protocol.KeyValue, error) 
 	return &kv, err
 }
 
-func (p *ProtoObjectFactoryObj) Message(obj *protocol.KeyValue) (any, error) {
+func (p *ProtoObjectFactoryObj) Message(obj *protocol.KeyValue) (proto.Message, error) {
 	m := p.Mo()
 	err := anypb.UnmarshalTo(obj.Message, m, proto.UnmarshalOptions{})
 	if err != nil {

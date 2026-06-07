@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -80,7 +79,7 @@ func (c *PostofficeService) loadAuthContext(vault *util.VaultClient) error {
 		return err
 	}
 	c.Auth = au
-	return os.WriteFile(core.CERT_NAME, []byte(auth.Cert), 0600)
+	return nil //os.WriteFile(core.CERT_NAME, []byte(auth.Cert), 0600)
 }
 
 // resolveSeeds queries the bootstrap address for current cluster members.

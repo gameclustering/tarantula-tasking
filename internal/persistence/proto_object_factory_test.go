@@ -74,4 +74,11 @@ func TestLoginObjectFactory(t *testing.T) {
 	}
 	pkv.Key.Array = []byte(moy.Name)
 	fmt.Printf("PKey %v\n", pkv.Key.Array)
+	
+	core.QueryFactoryRegistry["c"] = func() core.QueryFactory { return NewLoginObjectFactory()}
+	mc,_ := core.QueryFactoryRegistry["c"]
+	_,ok = mc().(core.ProtoObjectFactory)
+	if !ok{
+		t.Errorf("should be casting %v",ok)
+	}
 }
