@@ -218,5 +218,5 @@ func (c *AppManager) loadAuthContext() error {
 	}
 	c.Auth = au
 	c.CACert = []byte(auth.Cert)
-	return os.WriteFile(core.CERT_NAME, []byte(auth.Cert), 0600)
+	return nil //os.WriteFile(core.CERT_NAME, []byte(auth.Cert), 0600)
 }
