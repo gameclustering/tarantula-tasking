@@ -86,10 +86,12 @@ func (a *VaultClient) toSqlKey(kv *vault.KVSecret) *protocol.AuthKey {
 	user, _ := kv.Data["user"].(string)
 	pwd, _ := kv.Data["password"].(string)
 	host, _ := kv.Data["host"].(string)
+	cert, _ := kv.Data["cert"].(string)
 	ak := protocol.AuthKey{Sql: &protocol.SqlAccess{}}
 	ak.Sql.User = user
 	ak.Sql.Password = pwd
 	ak.Sql.Host = host
+	ak.Sql.Cert = cert
 	return &ak
 }
 
