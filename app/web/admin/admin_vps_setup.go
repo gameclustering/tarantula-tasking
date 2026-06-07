@@ -37,6 +37,10 @@ func (s *AdminVpsSetup) Request(rs core.OnSession, w http.ResponseWriter, r *htt
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "vendor, ip and password are required"}))
 		return
 	}
+	if req.Vendor != "vultr" {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "vendor not supported: " + req.Vendor}))
+		return
+	}
 
 	vpsKey, err := s.Cluster().AuthKey(req.Vendor)
 	if err != nil {
