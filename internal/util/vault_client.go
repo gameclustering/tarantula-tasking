@@ -182,9 +182,11 @@ func (a VaultClient) toVpsKey(kv *vault.KVSecret) *protocol.AuthKey {
 	ssh, _ := kv.Data["ssh"].(string)
 	user, _ := kv.Data["user"].(string)
 	apiKey, _ := kv.Data["apiKey"].(string)
+	password,_ :=kv.Data["password"].(string)
 	ak := protocol.AuthKey{Vps: &protocol.VpsAccess{}}
 	ak.Vps.Ssh = ssh
 	ak.Vps.User = user
 	ak.Vps.ApiKey = apiKey
+	ak.Vps.Password = password //SUDO password in case running sudo permission locally
 	return &ak
 }
