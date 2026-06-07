@@ -26,7 +26,7 @@ func (s *AdminVpsInstances) Request(rs core.OnSession, w http.ResponseWriter, r 
 		return
 	}
 
-	vpsKey, err := s.Cluster().AuthKey("vps")
+	vpsKey, err := s.Cluster().AuthKey(vendor)
 	if err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "failed to load vps key: " + err.Error()}))
 		return
