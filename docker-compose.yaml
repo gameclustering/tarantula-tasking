@@ -20,7 +20,9 @@ services:
     volumes:
       - volume_cloud:/home/tarantula/cloud
     depends_on:
-      - postoffice     
+      - postoffice
+    extra_hosts:
+      - "host.docker.internal:host-gateway"       
     networks:
       - tarantula-app-net
     env_file:
@@ -35,6 +37,8 @@ services:
       - volume_admin:/home/tarantula/admin  
     depends_on:
       - cloud
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  
     networks:
       - tarantula-app-net
     env_file:

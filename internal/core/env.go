@@ -10,7 +10,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-
 var (
 	AppLog zerolog.Logger
 
@@ -64,7 +63,7 @@ func (f *Env) Load(fn string) error {
 	}
 	f.HomeDir = homeDir
 	f.Prefix = "dev"
-
+	f.PostOfficeHost = "host.docker.internal"
 	c, exists := os.LookupEnv("POST_OFFICE_HOST")
 	if exists {
 		f.PostOfficeHost = c
@@ -74,7 +73,7 @@ func (f *Env) Load(fn string) error {
 	if exists {
 		f.Prefix = c
 	}
-    //use SEQ to keep nodeId unique in cluster scope
+	//use SEQ to keep nodeId unique in cluster scope
 	//if no SEQ config, nodeId is fron the json config , also need to keep it unique in cluster scope
 	c, exists = os.LookupEnv("SEQ")
 	if exists {
