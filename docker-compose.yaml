@@ -6,6 +6,9 @@ services:
     container_name: postoffice
     hostname: postoffice
     image: ${PREFIX}/tarantula.postoffice:${VERSION}
+    ports:
+      - "8080:8080"
+      - "7001:7001"
     network_mode: "host"
     volumes:
       - volume_postoffice:/home/tarantula/postoffice
@@ -17,6 +20,8 @@ services:
     container_name: cloud
     hostname: cloud
     image: ${PREFIX}/tarantula.cloud:${VERSION}
+    ports:
+      - "8080:8080"
     volumes:
       - volume_cloud:/home/tarantula/cloud
     depends_on:
@@ -31,6 +36,8 @@ services:
     container_name: admin
     hostname: admin
     image: ${PREFIX}/tarantula.admin:${VERSION}
+    ports:
+      - "8080:8080"
     volumes:
       - volume_admin:/home/tarantula/admin  
     depends_on:
@@ -46,6 +53,7 @@ services:
     image: ${PREFIX}/tarantula.caddy:${VERSION}
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - admin
     extra_hosts:
