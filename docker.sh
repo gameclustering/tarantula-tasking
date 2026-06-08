@@ -28,13 +28,13 @@ echo "Build params : ${version} ${prefix}"
 apps=("admin" "postoffice" "cloud")
 for app in "${apps[@]}"; do
   echo "Current build target : $app"
-  sudo docker build -f ./docker_application_build --build-arg app=$app --tag ${prefix}/tarantula.$app:$version .
+  docker build -f ./docker_application_build --build-arg app=$app --tag ${prefix}/tarantula.$app:$version .
   Check
   ((seq++))
 done
 
-sudo docker build -f ./docker_caddy_build --tag ${prefix}/tarantula.caddy:$version .
+docker build -f ./docker_caddy_build --tag ${prefix}/tarantula.caddy:$version .
 Check
-sudo docker builder prune -af
+docker builder prune -af
 
 Clean
