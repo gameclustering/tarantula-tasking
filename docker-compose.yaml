@@ -15,6 +15,8 @@ services:
     stop_grace_period: 20s
     restart: unless-stopped
     container_name: cloud
+    environment:
+      - POST_OFFICE_HOST=host.docker.internal
     hostname: cloud
     image: ${PREFIX}/tarantula.cloud:${VERSION}
     volumes:
@@ -31,6 +33,8 @@ services:
     stop_grace_period: 20s
     restart: unless-stopped
     container_name: admin
+    environment:
+      - POST_OFFICE_HOST=host.docker.internal
     hostname: admin
     image: ${PREFIX}/tarantula.admin:${VERSION}
     volumes:

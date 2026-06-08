@@ -63,7 +63,6 @@ func (f *Env) Load(fn string) error {
 	}
 	f.HomeDir = homeDir
 	f.Prefix = "dev"
-	f.PostOfficeHost = "host.docker.internal"
 	c, exists := os.LookupEnv("POST_OFFICE_HOST")
 	if exists {
 		f.PostOfficeHost = c
