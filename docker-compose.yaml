@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
     container_name: web
     hostname: web
-    image: ${PREFIX}/tarantula.nginx:${VERSION}
+    image: ${PREFIX}/tarantula.caddy:${VERSION}
     ports:
       - "80:80"
     depends_on:
