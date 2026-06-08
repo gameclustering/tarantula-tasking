@@ -33,7 +33,7 @@ for app in "${apps[@]}"; do
   ((seq++))
 done
 
-sudo docker build -f ./docker_nginx_build --tag ${prefix}/tarantula.nginx:$version .
+sudo docker build -f ./docker_caddy_build --tag ${prefix}/tarantula.caddy:$version .
 Check
 sudo docker builder prune -af
 
