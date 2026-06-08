@@ -6,9 +6,6 @@ services:
     container_name: postoffice
     hostname: postoffice
     image: ${PREFIX}/tarantula.postoffice:${VERSION}
-    ports:
-      - "8080:8080"
-      - "7001:7001"
     network_mode: "host"
     volumes:
       - volume_postoffice:/home/tarantula/postoffice
