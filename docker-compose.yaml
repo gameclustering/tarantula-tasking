@@ -52,6 +52,8 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - tarantula-app-net
+    env_file:
+      - .env   
 
 networks:
   tarantula-app-net:
