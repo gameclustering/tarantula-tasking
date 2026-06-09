@@ -45,6 +45,8 @@ func (s *PostofficeService) Start(env core.Env) error {
 	m := clustering.MemberlistManager{StoreDir: fmt.Sprintf("%s/%s", env.HomeDir, env.GroupName), Ctx: s.F.PresenceCtx()}
 	m.Seed = seeds
 	m.Binding = env.NodeName
+	m.AdvertiseAddr = env.PostOfficeAdvertiseIP
+	m.LocalHost = env.PostOfficeHost
 	err := m.Start(fmt.Appendf([]byte{}, "%s:%s", s.Context(), s.NodeId()), s.Authenticator(), s.Sequence(), &vault)
 	if err != nil {
 		core.AppLog.Warn().Msgf("no cluster can join %s", err.Error())

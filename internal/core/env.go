@@ -27,7 +27,8 @@ type Env struct {
 	GroupName      string `json:"GroupName"`
 	NodeName       string `json:"NodeName"`
 	NodeId         int64  `json:"NodeId"`
-	PostOfficeHost string `json:"PostOfficeHost"`
+	PostOfficeHost        string `json:"PostOfficeHost"`
+	PostOfficeAdvertiseIP string `json:"PostOfficeAdvertiseIP"`
 	HttpBinding    string `json:"HttpBinding"`
 
 	SqlEnabled       bool   `json:"SqlEnabled"`
@@ -66,6 +67,11 @@ func (f *Env) Load(fn string) error {
 	c, exists := os.LookupEnv("POST_OFFICE_HOST")
 	if exists {
 		f.PostOfficeHost = c
+	}
+
+	c, exists = os.LookupEnv("POSTOFFICE_ADVERTISE_IP")
+	if exists {
+		f.PostOfficeAdvertiseIP = c
 	}
 
 	c, exists = os.LookupEnv("ENV")
