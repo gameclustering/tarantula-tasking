@@ -45,13 +45,14 @@ func (s *PostofficeService) Start(env core.Env) error {
 	m := clustering.MemberlistManager{StoreDir: fmt.Sprintf("%s/%s", env.HomeDir, env.GroupName), Ctx: s.F.PresenceCtx()}
 	m.Seed = seeds
 	m.Binding = env.NodeName
+	m.AdvertiseAddr = env.PostOfficeAdvertiseIP
+	m.LocalHost = env.PostOfficeHost
 	err := m.Start(fmt.Appendf([]byte{}, "%s:%s", s.Context(), s.NodeId()), s.Authenticator(), s.Sequence(), &vault)
 	if err != nil {
 		core.AppLog.Warn().Msgf("no cluster can join %s", err.Error())
 		return err
 	}
 	s.mm = &m
-	s.mm.DWait.Wait()
 	s.started = true
 	http.HandleFunc("/postoffice/seeds", bootstrap.Logging(&ClusterSeedGet{s}))
 	core.AppLog.Info().Msgf("postoffice service started %s %s", env.HttpBinding, env.HomeDir)
@@ -84,26 +85,36 @@ func (c *PostofficeService) loadAuthContext(vault *util.VaultClient) error {
 
 // resolveSeeds queries the bootstrap address for current cluster members.
 // Returns nil if bootstrap is empty or unreachable — the node starts as the first member.
+// Retries up to 5 times with 3s delay to handle cases where the seed node is still starting.
 func resolveSeeds(bootstrap string) []string {
 	if bootstrap == "" {
 		return nil
 	}
+	url := strings.TrimRight(bootstrap, "/") + "/postoffice/seeds"
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(strings.TrimRight(bootstrap, "/") + "/postoffice/seeds")
-	if err != nil {
-		core.AppLog.Info().Msgf("cluster bootstrap unreachable at %s, starting as first node: %s", bootstrap, err.Error())
-		return nil
+	for attempt := 1; attempt <= 5; attempt++ {
+		resp, err := client.Get(url)
+		if err != nil {
+			core.AppLog.Info().Msgf("cluster bootstrap unreachable at %s (attempt %d/5): %s", bootstrap, attempt, err.Error())
+		} else {
+			if resp.StatusCode == http.StatusOK {
+				var seeds []string
+				decErr := json.NewDecoder(resp.Body).Decode(&seeds)
+				resp.Body.Close()
+				if decErr != nil {
+					core.AppLog.Warn().Msgf("failed to decode seeds from %s: %s", bootstrap, decErr.Error())
+					return nil
+				}
+				core.AppLog.Info().Msgf("resolved %d cluster seeds from %s: %v", len(seeds), bootstrap, seeds)
+				return seeds
+			}
+			resp.Body.Close()
+			core.AppLog.Info().Msgf("cluster bootstrap %s returned %d (attempt %d/5), retrying...", bootstrap, resp.StatusCode, attempt)
+		}
+		if attempt < 5 {
+			time.Sleep(3 * time.Second)
+		}
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		core.AppLog.Info().Msgf("cluster bootstrap %s returned %d, starting as first node", bootstrap, resp.StatusCode)
-		return nil
-	}
-	var seeds []string
-	if err := json.NewDecoder(resp.Body).Decode(&seeds); err != nil {
-		core.AppLog.Warn().Msgf("failed to decode seeds from %s: %s", bootstrap, err.Error())
-		return nil
-	}
-	core.AppLog.Info().Msgf("resolved %d cluster seeds from %s: %v", len(seeds), bootstrap, seeds)
-	return seeds
+	core.AppLog.Warn().Msgf("cluster bootstrap %s failed after 5 attempts, starting as first node", bootstrap)
+	return nil
 }

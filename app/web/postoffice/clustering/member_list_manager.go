@@ -21,9 +21,11 @@ type MemberlistManager struct {
 	Seed []string
 	MemberListListener
 
-	StoreDir string
-	Ctx      string
-	Binding  string
+	StoreDir    string
+	Ctx         string
+	Binding     string
+	AdvertiseAddr string // Vultr private IP advertised to cluster peers for inter-node RPC
+	LocalHost   string  // Docker bridge IP (e.g. 172.17.0.1) added as TLS SAN for admin/cloud connectivity
 }
 
 func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core.Sequence, vt *util.VaultClient) error {
@@ -31,6 +33,9 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.nodes = make([]core.Node, 0)
 	cfg := memberlist.DefaultLANConfig()
 	cfg.Name = m.Binding
+	if m.AdvertiseAddr != "" {
+		cfg.AdvertiseAddr = m.AdvertiseAddr
+	}
 	ch := make(chan memberlist.NodeEvent, NODE_EVENT_BUFFER_SIZE) //HAVE TO BUFFER
 	cl := memberlist.ChannelEventDelegate{Ch: ch}
 	m.MEvent = ch
@@ -58,11 +63,22 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.Memberlist = list
 
 	localIP := m.LocalNode().Addr.String()
+	// advertiseIP is the IP peers use to reach this node's RPC server across the cluster
+	advertiseIP := localIP
+	if m.AdvertiseAddr != "" {
+		advertiseIP = m.AdvertiseAddr
+	}
+	// cert SANs: always include advertiseIP; also include the Docker bridge IP so
+	// admin/cloud containers on the same host can connect via POST_OFFICE_HOST
+	sans := []string{advertiseIP}
+	if m.LocalHost != "" && m.LocalHost != advertiseIP {
+		sans = append(sans, m.LocalHost)
+	}
 	ak, err := vt.Load(m.Ctx, "auth")
 	if err != nil {
 		return fmt.Errorf("load auth for tls: %w", err)
 	}
-	tlsCert, err := util.CASignedTLS([]byte(ak.Cert), []byte(ak.Key), []string{localIP}, 365*24*time.Hour)
+	tlsCert, err := util.CASignedTLS([]byte(ak.Cert), []byte(ak.Key), sans, 365*24*time.Hour)
 	if err != nil {
 		return fmt.Errorf("generate tls cert: %w", err)
 	}
@@ -74,7 +90,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.DataServiceProvider = &DataServiceProvider{RNode: rwNode, RSync: rwSync, seq: seq, vault: vt, auth: auth}
 	m.DataServiceProvider.TLSCert = tlsCert
 	m.DataServiceProvider.CACert = []byte(ak.Cert)
-	m.DataServiceProvider.rpcEndpoint = fmt.Sprintf("%s:%d", localIP, core.RPC_PORT)
+	m.DataServiceProvider.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
 	m.Mll = &m.MemberListListener
 	m.Mll.DWait.Add(1)
 	go m.DataServiceProvider.Start(m.StoreDir, m.Ctx)

@@ -6,21 +6,29 @@ services:
     container_name: postoffice
     hostname: postoffice
     image: ${PREFIX}/tarantula.postoffice:${VERSION}
-    network_mode: "host"
+    ports:
+      - "7946:7946/tcp"
+      - "7946:7946/udp"
+      - "7001:7001"
+      - "8080:8080"
+    networks:
+      - tarantula-app-net
     volumes:
       - volume_postoffice:/home/tarantula/postoffice
     env_file:
-      - .env  
+      - .env
   cloud:
     stop_grace_period: 20s
     restart: unless-stopped
     container_name: cloud
+   
     hostname: cloud
     image: ${PREFIX}/tarantula.cloud:${VERSION}
     volumes:
       - volume_cloud:/home/tarantula/cloud
     depends_on:
-      - postoffice     
+      - postoffice
+         
     networks:
       - tarantula-app-net
     env_file:
@@ -29,12 +37,14 @@ services:
     stop_grace_period: 20s
     restart: unless-stopped
     container_name: admin
+   
     hostname: admin
     image: ${PREFIX}/tarantula.admin:${VERSION}
     volumes:
       - volume_admin:/home/tarantula/admin  
     depends_on:
       - cloud
+
     networks:
       - tarantula-app-net
     env_file:
@@ -43,15 +53,18 @@ services:
     restart: unless-stopped
     container_name: web
     hostname: web
-    image: ${PREFIX}/tarantula.nginx:${VERSION}
+    image: ${PREFIX}/tarantula.caddy:${VERSION}
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - admin
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - tarantula-app-net
+    volumes:
+      - volume_caddy:/data
+    env_file:
+      - .env
 
 networks:
   tarantula-app-net:
@@ -60,3 +73,4 @@ volumes:
   volume_postoffice:
   volume_cloud:
   volume_admin:
+  volume_caddy:

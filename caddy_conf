@@ -1,0 +1,11 @@
+{$DOMAIN} {
+    handle /admin/* {
+        reverse_proxy admin:8080
+    }
+    handle /cloud/* {
+        reverse_proxy cloud:8080
+    }
+    handle /postoffice/* {
+        reverse_proxy postoffice:8080
+    }
+}

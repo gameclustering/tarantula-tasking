@@ -1,8 +1,8 @@
 {
     "LogTruncated":true,
 	"GroupName" :"postoffice",
-	"NodeName" :   "postoffice.5",
-	"NodeId"     :   5,
-	"ClusterBootstrap": "http://192.168.1.11:8080",
+	"NodeName" :   "postoffice.3",
+	"NodeId"     :   3,
+	"ClusterBootstrap": "",
 	"SqlEnabled":false
 }
