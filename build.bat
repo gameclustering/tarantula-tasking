@@ -27,7 +27,7 @@ IF %ERRORLEVEL% NEQ 0 (
     goto Clean
 )
 
-docker build -f .\docker_nginx_build --tag %prefix%/tarantula.nginx:%version% .
+docker build -f .\docker_caddy_build --tag %prefix%/tarantula.caddy:%version% .
 IF %ERRORLEVEL% NEQ 0 ( 
     @echo "build failed, try again"
     goto Clean

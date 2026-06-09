@@ -27,7 +27,7 @@ for app in "${apps[@]}"; do
   ((seq++))
 done
 
-podman build  -f ./docker_nginx_build --tag tarantula.nginx:$version .
+podman build  -f ./docker_caddy_build --tag tarantula.caddy:$version .
 Check
 podman image prune --filter "label=stage=builder"
 
