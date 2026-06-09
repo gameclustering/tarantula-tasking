@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -55,8 +58,27 @@ func (s *PostofficeService) Start(env core.Env) error {
 	s.mm = &m
 	s.started = true
 	http.HandleFunc("/postoffice/seeds", bootstrap.Logging(&ClusterSeedGet{s}))
+	registerServiceProxy("/admin/", os.Getenv("ADMIN_HOST"), "http://admin:8080")
+	registerServiceProxy("/cloud/", os.Getenv("CLOUD_HOST"), "http://cloud:8080")
 	core.AppLog.Info().Msgf("postoffice service started %s %s", env.HttpBinding, env.HomeDir)
 	return nil
+}
+
+// registerServiceProxy forwards /prefix/* requests to the target service.
+// envOverride allows the target to be overridden via env var for testing.
+func registerServiceProxy(prefix, envOverride, defaultTarget string) {
+	target := defaultTarget
+	if envOverride != "" {
+		target = envOverride
+	}
+	u, err := url.Parse(target)
+	if err != nil {
+		core.AppLog.Warn().Msgf("invalid proxy target %s for %s: %s", target, prefix, err)
+		return
+	}
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	http.Handle(prefix, proxy)
+	core.AppLog.Info().Msgf("proxying %s* → %s", prefix, target)
 }
 
 func (s *PostofficeService) Shutdown() {

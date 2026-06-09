@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -18,8 +17,6 @@ import (
 )
 
 const (
-	RPC_CONNECT_RETRIES int = 3
-
 	SUB_CHAN_SIZE   int = 3
 	TOPIC_CHAN_SIZE int = 12
 
@@ -28,7 +25,13 @@ const (
 
 	OPT_TRANS   int = 300
 	OPT_UNTRANS int = 400
+
+	RPC_TIMEOUT = 10 * time.Second
 )
+
+func rpcCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), RPC_TIMEOUT)
+}
 
 type Sub struct {
 	opt                 int
@@ -43,6 +46,7 @@ type ClusterManager struct {
 
 	subscriptions map[string]core.TopicListener
 	transactions  map[string]core.TransactionListener
+	subLock       sync.RWMutex
 	cSub          chan Sub
 	cInboundTopic chan *protocol.Topic
 	cInboundTrans chan *protocol.Transaction
@@ -59,8 +63,10 @@ func (c *ClusterManager) HashRing(r core.RingRequest) (*protocol.Response, error
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.HashRing(context.Background(), &protocol.Request{Prefix: 0})
+	return dsp.HashRing(ctx, &protocol.Request{Prefix: 0})
 }
 
 func (c *ClusterManager) KeyRing(r core.RingRequest) (*protocol.Response, error) {
@@ -71,8 +77,10 @@ func (c *ClusterManager) KeyRing(r core.RingRequest) (*protocol.Response, error)
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.KeyRing(context.Background(), &protocol.Request{Prefix: r.Token})
+	return dsp.KeyRing(ctx, &protocol.Request{Prefix: r.Token})
 }
 
 func (c *ClusterManager) RingToken(key []byte) uint32 {
@@ -89,8 +97,10 @@ func (c *ClusterManager) Request(r *protocol.Request) (*protocol.Response, error
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Request(context.Background(), r)
+	return dsp.Request(ctx, r)
 }
 
 func (c *ClusterManager) List(r core.Query) (grpc.ServerStreamingClient[protocol.Response], error) {
@@ -123,8 +133,10 @@ func (c *ClusterManager) Publish(e *protocol.Topic) (*protocol.Response, error) 
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Publish(context.Background(), e)
+	return dsp.Publish(ctx, e)
 }
 
 func (c *ClusterManager) Issue(e *protocol.Task) (*protocol.Response, error) {
@@ -135,9 +147,11 @@ func (c *ClusterManager) Issue(e *protocol.Task) (*protocol.Response, error) {
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
 	e.Meta.Time = timestamppb.Now()
-	return dsp.Issue(context.Background(), e)
+	return dsp.Issue(ctx, e)
 }
 
 func (c *ClusterManager) Confirm(e *protocol.Meta) (*protocol.Response, error) {
@@ -148,8 +162,10 @@ func (c *ClusterManager) Confirm(e *protocol.Meta) (*protocol.Response, error) {
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Confirm(context.Background(), e)
+	return dsp.Confirm(ctx, e)
 }
 
 func (c *ClusterManager) Cancel(e *protocol.Meta) (*protocol.Response, error) {
@@ -160,8 +176,10 @@ func (c *ClusterManager) Cancel(e *protocol.Meta) (*protocol.Response, error) {
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Cancel(context.Background(), e)
+	return dsp.Cancel(ctx, e)
 }
 
 func (c *ClusterManager) Finish(e *protocol.Meta) (*protocol.Response, error) {
@@ -172,8 +190,10 @@ func (c *ClusterManager) Finish(e *protocol.Meta) (*protocol.Response, error) {
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Finish(context.Background(), e)
+	return dsp.Finish(ctx, e)
 }
 
 func (c *ClusterManager) Subscribe(topic string, listener core.TopicListener) error {
@@ -195,8 +215,10 @@ func (c *ClusterManager) subscribe(name string, opt uint32) (*protocol.Response,
 		return &protocol.Response{Successful: false}, err
 	}
 
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Subscribe(context.Background(), &protocol.Subscription{Opt: opt, NodeId: c.App.NodeId(), Tag: c.App.Context(), Name: name})
+	return dsp.Subscribe(ctx, &protocol.Subscription{Opt: opt, NodeId: c.App.NodeId(), Tag: c.App.Context(), Name: name})
 }
 func (c *ClusterManager) unsubscribe(name string, opt uint32) (*protocol.Response, error) {
 	if !c.running {
@@ -207,8 +229,10 @@ func (c *ClusterManager) unsubscribe(name string, opt uint32) (*protocol.Respons
 		return &protocol.Response{Successful: false}, err
 	}
 
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Unsubscribe(context.Background(), &protocol.Subscription{Opt: opt, NodeId: c.App.NodeId(), Tag: c.App.Context(), Name: name})
+	return dsp.Unsubscribe(ctx, &protocol.Subscription{Opt: opt, NodeId: c.App.NodeId(), Tag: c.App.Context(), Name: name})
 }
 
 func (c *ClusterManager) Unsubscribe(topic string) error {
@@ -270,43 +294,66 @@ func (c *ClusterManager) connect(host string) error {
 }
 
 func (c *ClusterManager) receive(w *sync.WaitGroup) {
-	retries := RPC_CONNECT_RETRIES
-	conn, err := c.cPool.Conn()
-	if err != nil {
-		panic(err.Error())
-	}
-ro:
-	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	stream, err := dsp.Receive(context.Background(), &protocol.Topic{NodeId: c.App.NodeId(), Tag: c.App.Context()})
-	if err != nil {
-		retries--
-		if retries > 0 {
-			core.AppLog.Warn().Msgf("rpc connection retry with %s %d", err.Error(), retries)
-			time.Sleep(3 * time.Second)
-			goto ro
-		}
-		core.AppLog.Warn().Msgf("rpc connection error after retried %s", err.Error())
-		return
-	}
-	w.Done()
+	connected := false
 	for c.running {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			core.AppLog.Warn().Msgf("eof %s", err.Error())
-			break
-		}
+		conn, err := c.cPool.Conn()
 		if err != nil {
-			core.AppLog.Warn().Msgf("streaming error %s", err.Error())
-			break
+			core.AppLog.Warn().Msgf("rpc conn error %s, retrying...", err.Error())
+			time.Sleep(3 * time.Second)
+			continue
 		}
-		switch resp.Opt {
-		case core.TOPIC_MAIL:
-			c.cInboundTopic <- resp.Topic
-		case core.TRANS_MAIL:
-			c.cInboundTrans <- resp.Transaction
+		dsp := protocol.NewPostofficeServiceClient(conn.Conn)
+		stream, err := dsp.Receive(context.Background(), &protocol.Topic{NodeId: c.App.NodeId(), Tag: c.App.Context()})
+		if err != nil {
+			core.AppLog.Warn().Msgf("rpc stream error %s, retrying...", err.Error())
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if !connected {
+			connected = true
+			w.Done()
+		} else {
+			c.resubscribe()
+		}
+		for c.running {
+			resp, err := stream.Recv()
+			if err != nil {
+				core.AppLog.Warn().Msgf("streaming error %s, reconnecting...", err.Error())
+				break
+			}
+			switch resp.Opt {
+			case core.TOPIC_MAIL:
+				c.cInboundTopic <- resp.Topic
+			case core.TRANS_MAIL:
+				c.cInboundTrans <- resp.Transaction
+			}
 		}
 	}
-	core.AppLog.Warn().Msgf("cluster manager receiver closed from remote %v", c.running)
+	core.AppLog.Warn().Msgf("cluster manager receiver stopped")
+}
+
+func (c *ClusterManager) resubscribe() {
+	c.subLock.RLock()
+	topics := make([]string, 0, len(c.subscriptions))
+	for name := range c.subscriptions {
+		topics = append(topics, name)
+	}
+	trans := make([]string, 0, len(c.transactions))
+	for name := range c.transactions {
+		trans = append(trans, name)
+	}
+	c.subLock.RUnlock()
+	for _, name := range topics {
+		if _, err := c.subscribe(name, core.TOPIC_MAIL); err != nil {
+			core.AppLog.Warn().Msgf("resubscribe topic %s: %s", name, err.Error())
+		}
+	}
+	for _, name := range trans {
+		if _, err := c.subscribe(name, core.TRANS_MAIL); err != nil {
+			core.AppLog.Warn().Msgf("resubscribe transaction %s: %s", name, err.Error())
+		}
+	}
+	core.AppLog.Info().Msgf("resubscribed %d topics %d transactions after reconnect", len(topics), len(trans))
 }
 
 func (c *ClusterManager) async() {
@@ -327,6 +374,7 @@ func (c *ClusterManager) async() {
 				core.AppLog.Warn().Msgf("dead topic %v", topic)
 			}
 		case sub := <-c.cSub:
+			c.subLock.Lock()
 			switch sub.opt {
 			case OPT_SUB:
 				c.subscriptions[sub.name] = sub.listener
@@ -337,6 +385,7 @@ func (c *ClusterManager) async() {
 			case OPT_UNTRANS:
 				delete(c.transactions, sub.name)
 			}
+			c.subLock.Unlock()
 		}
 	}
 	core.AppLog.Warn().Msgf("cluster manager async task closed from remote %v", c.running)
@@ -405,8 +454,10 @@ func (c *ClusterManager) TopicList() (*protocol.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.TopicList(context.Background(), &protocol.Request{Prefix: 0})
+	return dsp.TopicList(ctx, &protocol.Request{Prefix: 0})
 }
 
 func (c *ClusterManager) TaskList() (*protocol.Response, error) {
@@ -417,8 +468,10 @@ func (c *ClusterManager) TaskList() (*protocol.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.TaskList(context.Background(), &protocol.Request{Prefix: 0})
+	return dsp.TaskList(ctx, &protocol.Request{Prefix: 0})
 }
 
 func (c *ClusterManager) AuthKey(name string) (*protocol.AuthKey, error) {
@@ -429,6 +482,8 @@ func (c *ClusterManager) AuthKey(name string) (*protocol.AuthKey, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.AuthKey(context.Background(), &protocol.Request{Context: fmt.Sprintf("%s#%s", c.App.F.PresenceCtx(), name)})
+	return dsp.AuthKey(ctx, &protocol.Request{Context: fmt.Sprintf("%s#%s", c.App.F.PresenceCtx(), name)})
 }
