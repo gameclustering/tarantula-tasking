@@ -3,6 +3,6 @@
 	"GroupName" :"postoffice",
 	"NodeName" :   "postoffice.3",
 	"NodeId"     :   3,
-	"ClusterBootstrap": "http://192.168.1.11:8080",
+	"ClusterBootstrap": "",
 	"SqlEnabled":false
 }
