@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -18,8 +17,6 @@ import (
 )
 
 const (
-	RPC_CONNECT_RETRIES int = 3
-
 	SUB_CHAN_SIZE   int = 3
 	TOPIC_CHAN_SIZE int = 12
 
@@ -43,6 +40,7 @@ type ClusterManager struct {
 
 	subscriptions map[string]core.TopicListener
 	transactions  map[string]core.TransactionListener
+	subLock       sync.RWMutex
 	cSub          chan Sub
 	cInboundTopic chan *protocol.Topic
 	cInboundTrans chan *protocol.Transaction
@@ -270,43 +268,66 @@ func (c *ClusterManager) connect(host string) error {
 }
 
 func (c *ClusterManager) receive(w *sync.WaitGroup) {
-	retries := RPC_CONNECT_RETRIES
-	conn, err := c.cPool.Conn()
-	if err != nil {
-		panic(err.Error())
-	}
-ro:
-	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	stream, err := dsp.Receive(context.Background(), &protocol.Topic{NodeId: c.App.NodeId(), Tag: c.App.Context()})
-	if err != nil {
-		retries--
-		if retries > 0 {
-			core.AppLog.Warn().Msgf("rpc connection retry with %s %d", err.Error(), retries)
-			time.Sleep(3 * time.Second)
-			goto ro
-		}
-		core.AppLog.Warn().Msgf("rpc connection error after retried %s", err.Error())
-		return
-	}
-	w.Done()
+	connected := false
 	for c.running {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			core.AppLog.Warn().Msgf("eof %s", err.Error())
-			break
-		}
+		conn, err := c.cPool.Conn()
 		if err != nil {
-			core.AppLog.Warn().Msgf("streaming error %s", err.Error())
-			break
+			core.AppLog.Warn().Msgf("rpc conn error %s, retrying...", err.Error())
+			time.Sleep(3 * time.Second)
+			continue
 		}
-		switch resp.Opt {
-		case core.TOPIC_MAIL:
-			c.cInboundTopic <- resp.Topic
-		case core.TRANS_MAIL:
-			c.cInboundTrans <- resp.Transaction
+		dsp := protocol.NewPostofficeServiceClient(conn.Conn)
+		stream, err := dsp.Receive(context.Background(), &protocol.Topic{NodeId: c.App.NodeId(), Tag: c.App.Context()})
+		if err != nil {
+			core.AppLog.Warn().Msgf("rpc stream error %s, retrying...", err.Error())
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if !connected {
+			connected = true
+			w.Done()
+		} else {
+			c.resubscribe()
+		}
+		for c.running {
+			resp, err := stream.Recv()
+			if err != nil {
+				core.AppLog.Warn().Msgf("streaming error %s, reconnecting...", err.Error())
+				break
+			}
+			switch resp.Opt {
+			case core.TOPIC_MAIL:
+				c.cInboundTopic <- resp.Topic
+			case core.TRANS_MAIL:
+				c.cInboundTrans <- resp.Transaction
+			}
 		}
 	}
-	core.AppLog.Warn().Msgf("cluster manager receiver closed from remote %v", c.running)
+	core.AppLog.Warn().Msgf("cluster manager receiver stopped")
+}
+
+func (c *ClusterManager) resubscribe() {
+	c.subLock.RLock()
+	topics := make([]string, 0, len(c.subscriptions))
+	for name := range c.subscriptions {
+		topics = append(topics, name)
+	}
+	trans := make([]string, 0, len(c.transactions))
+	for name := range c.transactions {
+		trans = append(trans, name)
+	}
+	c.subLock.RUnlock()
+	for _, name := range topics {
+		if _, err := c.subscribe(name, core.TOPIC_MAIL); err != nil {
+			core.AppLog.Warn().Msgf("resubscribe topic %s: %s", name, err.Error())
+		}
+	}
+	for _, name := range trans {
+		if _, err := c.subscribe(name, core.TRANS_MAIL); err != nil {
+			core.AppLog.Warn().Msgf("resubscribe transaction %s: %s", name, err.Error())
+		}
+	}
+	core.AppLog.Info().Msgf("resubscribed %d topics %d transactions after reconnect", len(topics), len(trans))
 }
 
 func (c *ClusterManager) async() {
@@ -327,6 +348,7 @@ func (c *ClusterManager) async() {
 				core.AppLog.Warn().Msgf("dead topic %v", topic)
 			}
 		case sub := <-c.cSub:
+			c.subLock.Lock()
 			switch sub.opt {
 			case OPT_SUB:
 				c.subscriptions[sub.name] = sub.listener
@@ -337,6 +359,7 @@ func (c *ClusterManager) async() {
 			case OPT_UNTRANS:
 				delete(c.transactions, sub.name)
 			}
+			c.subLock.Unlock()
 		}
 	}
 	core.AppLog.Warn().Msgf("cluster manager async task closed from remote %v", c.running)
