@@ -3,8 +3,6 @@ package main
 import (
 	"errors"
 
-	"gameclustering.com/internal/core"
-	"gameclustering.com/internal/persistence"
 	"gameclustering.com/internal/protocol"
 	"github.com/jackc/pgx/v5"
 )
@@ -78,14 +76,6 @@ func (s *AdminService) ListRepos() ([]RepoRow, error) {
 }
 
 func (s *AdminService) SaveLogin(login *protocol.LoginObject) error {
-	ef := persistence.NewLoginObjectFactory()
-	req, err := ef.FromLoginObject(login)
-	req.Opt = core.CREATE_DATA_REQUEST
-	resp, err := s.Cluster().Request(req)
-	if err != nil {
-		core.AppLog.Debug().Msgf("save error %s", err.Error())
-	}
-	core.AppLog.Debug().Msgf("resp %v", resp)
 	inserted, err := s.Sql.Exec(INSERT_LOGIN, login.Name, login.Password, login.AccessControl)
 	if err != nil {
 		return err
@@ -97,14 +87,7 @@ func (s *AdminService) SaveLogin(login *protocol.LoginObject) error {
 }
 
 func (s *AdminService) LoadLogin(login *protocol.LoginObject) error {
-	ef := persistence.NewLoginObjectFactory()
-	req, err := ef.FromLoginObject(login)
-	req.Opt = core.GET_DATA_REQUEST
-	_, err = s.Cluster().Request(req)
-	if err != nil {
-		core.AppLog.Debug().Msgf("load error %s", err.Error())
-	}
-	err = s.Sql.Query(func(rows pgx.Rows) error {
+	err := s.Sql.Query(func(rows pgx.Rows) error {
 		var hash string
 		var id int32
 		var accessControl int32

@@ -25,7 +25,13 @@ const (
 
 	OPT_TRANS   int = 300
 	OPT_UNTRANS int = 400
+
+	RPC_TIMEOUT = 10 * time.Second
 )
+
+func rpcCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), RPC_TIMEOUT)
+}
 
 type Sub struct {
 	opt                 int
@@ -57,8 +63,10 @@ func (c *ClusterManager) HashRing(r core.RingRequest) (*protocol.Response, error
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.HashRing(context.Background(), &protocol.Request{Prefix: 0})
+	return dsp.HashRing(ctx, &protocol.Request{Prefix: 0})
 }
 
 func (c *ClusterManager) KeyRing(r core.RingRequest) (*protocol.Response, error) {
@@ -69,8 +77,10 @@ func (c *ClusterManager) KeyRing(r core.RingRequest) (*protocol.Response, error)
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.KeyRing(context.Background(), &protocol.Request{Prefix: r.Token})
+	return dsp.KeyRing(ctx, &protocol.Request{Prefix: r.Token})
 }
 
 func (c *ClusterManager) RingToken(key []byte) uint32 {
@@ -87,8 +97,10 @@ func (c *ClusterManager) Request(r *protocol.Request) (*protocol.Response, error
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Request(context.Background(), r)
+	return dsp.Request(ctx, r)
 }
 
 func (c *ClusterManager) List(r core.Query) (grpc.ServerStreamingClient[protocol.Response], error) {
@@ -121,8 +133,10 @@ func (c *ClusterManager) Publish(e *protocol.Topic) (*protocol.Response, error) 
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Publish(context.Background(), e)
+	return dsp.Publish(ctx, e)
 }
 
 func (c *ClusterManager) Issue(e *protocol.Task) (*protocol.Response, error) {
@@ -133,9 +147,11 @@ func (c *ClusterManager) Issue(e *protocol.Task) (*protocol.Response, error) {
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
 	e.Meta.Time = timestamppb.Now()
-	return dsp.Issue(context.Background(), e)
+	return dsp.Issue(ctx, e)
 }
 
 func (c *ClusterManager) Confirm(e *protocol.Meta) (*protocol.Response, error) {
@@ -146,8 +162,10 @@ func (c *ClusterManager) Confirm(e *protocol.Meta) (*protocol.Response, error) {
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Confirm(context.Background(), e)
+	return dsp.Confirm(ctx, e)
 }
 
 func (c *ClusterManager) Cancel(e *protocol.Meta) (*protocol.Response, error) {
@@ -158,8 +176,10 @@ func (c *ClusterManager) Cancel(e *protocol.Meta) (*protocol.Response, error) {
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Cancel(context.Background(), e)
+	return dsp.Cancel(ctx, e)
 }
 
 func (c *ClusterManager) Finish(e *protocol.Meta) (*protocol.Response, error) {
@@ -170,8 +190,10 @@ func (c *ClusterManager) Finish(e *protocol.Meta) (*protocol.Response, error) {
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Finish(context.Background(), e)
+	return dsp.Finish(ctx, e)
 }
 
 func (c *ClusterManager) Subscribe(topic string, listener core.TopicListener) error {
@@ -193,8 +215,10 @@ func (c *ClusterManager) subscribe(name string, opt uint32) (*protocol.Response,
 		return &protocol.Response{Successful: false}, err
 	}
 
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Subscribe(context.Background(), &protocol.Subscription{Opt: opt, NodeId: c.App.NodeId(), Tag: c.App.Context(), Name: name})
+	return dsp.Subscribe(ctx, &protocol.Subscription{Opt: opt, NodeId: c.App.NodeId(), Tag: c.App.Context(), Name: name})
 }
 func (c *ClusterManager) unsubscribe(name string, opt uint32) (*protocol.Response, error) {
 	if !c.running {
@@ -205,8 +229,10 @@ func (c *ClusterManager) unsubscribe(name string, opt uint32) (*protocol.Respons
 		return &protocol.Response{Successful: false}, err
 	}
 
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.Unsubscribe(context.Background(), &protocol.Subscription{Opt: opt, NodeId: c.App.NodeId(), Tag: c.App.Context(), Name: name})
+	return dsp.Unsubscribe(ctx, &protocol.Subscription{Opt: opt, NodeId: c.App.NodeId(), Tag: c.App.Context(), Name: name})
 }
 
 func (c *ClusterManager) Unsubscribe(topic string) error {
@@ -428,8 +454,10 @@ func (c *ClusterManager) TopicList() (*protocol.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.TopicList(context.Background(), &protocol.Request{Prefix: 0})
+	return dsp.TopicList(ctx, &protocol.Request{Prefix: 0})
 }
 
 func (c *ClusterManager) TaskList() (*protocol.Response, error) {
@@ -440,8 +468,10 @@ func (c *ClusterManager) TaskList() (*protocol.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.TaskList(context.Background(), &protocol.Request{Prefix: 0})
+	return dsp.TaskList(ctx, &protocol.Request{Prefix: 0})
 }
 
 func (c *ClusterManager) AuthKey(name string) (*protocol.AuthKey, error) {
@@ -452,6 +482,8 @@ func (c *ClusterManager) AuthKey(name string) (*protocol.AuthKey, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := rpcCtx()
+	defer cancel()
 	dsp := protocol.NewPostofficeServiceClient(conn.Conn)
-	return dsp.AuthKey(context.Background(), &protocol.Request{Context: fmt.Sprintf("%s#%s", c.App.F.PresenceCtx(), name)})
+	return dsp.AuthKey(ctx, &protocol.Request{Context: fmt.Sprintf("%s#%s", c.App.F.PresenceCtx(), name)})
 }
