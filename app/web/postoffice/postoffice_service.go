@@ -53,7 +53,6 @@ func (s *PostofficeService) Start(env core.Env) error {
 		return err
 	}
 	s.mm = &m
-	s.mm.DWait.Wait()
 	s.started = true
 	http.HandleFunc("/postoffice/seeds", bootstrap.Logging(&ClusterSeedGet{s}))
 	core.AppLog.Info().Msgf("postoffice service started %s %s", env.HttpBinding, env.HomeDir)
