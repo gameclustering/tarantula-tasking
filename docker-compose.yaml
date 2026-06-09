@@ -10,6 +10,7 @@ services:
       - "7946:7946/tcp"
       - "7946:7946/udp"
       - "7001:7001"
+      - "8080:8080"
     networks:
       - tarantula-app-net
     volumes:
@@ -60,8 +61,10 @@ services:
       - admin
     networks:
       - tarantula-app-net
+    volumes:
+      - volume_caddy:/data
     env_file:
-      - .env   
+      - .env
 
 networks:
   tarantula-app-net:
@@ -70,3 +73,4 @@ volumes:
   volume_postoffice:
   volume_cloud:
   volume_admin:
+  volume_caddy:
