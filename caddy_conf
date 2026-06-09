@@ -6,6 +6,6 @@
         reverse_proxy cloud:8080
     }
     handle /postoffice/* {
-        reverse_proxy host.docker.internal:8080
+        reverse_proxy postoffice:8080
     }
 }

@@ -6,11 +6,16 @@ services:
     container_name: postoffice
     hostname: postoffice
     image: ${PREFIX}/tarantula.postoffice:${VERSION}
-    network_mode: "host"
+    ports:
+      - "7946:7946/tcp"
+      - "7946:7946/udp"
+      - "7001:7001"
+    networks:
+      - tarantula-app-net
     volumes:
       - volume_postoffice:/home/tarantula/postoffice
     env_file:
-      - .env  
+      - .env
   cloud:
     stop_grace_period: 20s
     restart: unless-stopped
@@ -53,8 +58,6 @@ services:
       - "443:443"
     depends_on:
       - admin
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - tarantula-app-net
     env_file:
