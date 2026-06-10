@@ -2,6 +2,10 @@
 
 A distributed task management and clustering system written in Go, designed for coordinating and executing jobs across multiple nodes.
 
+## Documentation
+
+- [Cluster Formation on VPS Platforms](docs/cluster-formation.md) — how nodes discover each other, hash ring partitioning, env vars, deploy sequence, and health checks
+
 ## Overview
 
 Tarantula is a multi-service platform built around three core microservices that work together via cluster membership discovery and event streaming:
