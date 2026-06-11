@@ -1,13 +1,18 @@
 package clustering
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type RingUpdate struct {
@@ -133,19 +138,9 @@ func (m *DataServiceProvider) RingUpdated() {
 				core.AppLog.Warn().Msgf("cannot parse remote data from %s", string(sync))
 			} else {
 				if len(ds.Ranges) > 0 {
-					m.DWait.Add(SET_OPERATOR_NUM)
-					for range SET_OPERATOR_NUM {
-						m.DSet <- SetData{Opt: core.SET_OPT_RECOVER}
-					}
-					pz := SET_OPERATOR_NUM
-					for _, p := range ds.Ranges {
-						ps := core.RingSync{Remote: ds.Remote, Ranges: []core.RingRange{p}}
-						m.DPull <- ps
-						pz--
-					}
-					for range pz {
-						m.DPull <- core.RingSync{Remote: ds.Remote, Ranges: []core.RingRange{}}
-					}
+					// Run recovery in a background goroutine so DSet workers
+					// remain available for normal Create/Update requests.
+					go m.recoverFromNode(ds)
 				} else {
 					m.registerSubscription(ds.Sub)
 				}
@@ -226,4 +221,45 @@ func (m *DataServiceProvider) RingUpdated() {
 	m.server.Stop()
 	m.Local.Close()
 	core.AppLog.Info().Msg("local data service provider has stopped")
+}
+
+// recoverFromNode pulls ring-partition data from ds.Remote in the background.
+// Runs in its own goroutine so DSet workers stay available for normal writes.
+func (m *DataServiceProvider) recoverFromNode(ds core.RingSync) {
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(m.CACert)
+	creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
+	p := core.RpcConnPool{Auth: m.auth}
+	tcp, err := grpc.NewClient(ds.Remote,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithUnaryInterceptor(p.OnCall),
+		grpc.WithStreamInterceptor(p.OnStreaming),
+	)
+	if err != nil {
+		core.AppLog.Warn().Msgf("recovery connect error from %s: %s", ds.Remote, err.Error())
+		return
+	}
+	defer tcp.Close()
+	total := 0
+	for _, h := range ds.Ranges {
+		req := protocol.Request{Prefix: h.From, Opt: h.To}
+		stream, err := m.runPull(tcp, &req)
+		if err != nil {
+			core.AppLog.Warn().Msgf("recovery pull error from %s: %s", ds.Remote, err.Error())
+			continue
+		}
+		for {
+			data, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				core.AppLog.Warn().Msgf("recovery recv error from %s: %s", ds.Remote, err.Error())
+				break
+			}
+			total += len(data.Data.List)
+			m.set(data)
+		}
+	}
+	core.AppLog.Info().Msgf("recovery from %s complete, %d rows", ds.Remote, total)
 }

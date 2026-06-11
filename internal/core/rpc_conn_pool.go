@@ -10,7 +10,9 @@ import (
 
 	"gameclustering.com/internal/protocol"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -56,8 +58,28 @@ func (p *RpcConnPool) connect(target string) (*grpc.ClientConn, error) {
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(p.CACert)
 	creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
+	cp := grpc.ConnectParams{
+		Backoff: backoff.Config{
+			BaseDelay:  100 * time.Millisecond,
+			Multiplier: 1.6,
+			Jitter:     0.2,
+			MaxDelay:   5 * time.Second,
+		},
+		MinConnectTimeout: 5 * time.Second,
+	}
+	kp := keepalive.ClientParameters{
+		Time:                10 * time.Second,
+		Timeout:             5 * time.Second,
+		PermitWithoutStream: true,
+	}
 	for {
-		tcp, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(p.OnCall), grpc.WithStreamInterceptor(p.OnStreaming))
+		tcp, err := grpc.NewClient(target,
+			grpc.WithTransportCredentials(creds),
+			grpc.WithUnaryInterceptor(p.OnCall),
+			grpc.WithStreamInterceptor(p.OnStreaming),
+			grpc.WithConnectParams(cp),
+			grpc.WithKeepaliveParams(kp),
+		)
 		if err != nil {
 			retries--
 			if retries > 0 {
