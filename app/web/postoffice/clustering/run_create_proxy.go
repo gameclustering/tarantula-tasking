@@ -8,7 +8,7 @@ import (
 	"gameclustering.com/internal/protocol"
 )
 
-const CLIENT_TIMEOUT = 2 * time.Second
+const CLIENT_TIMEOUT = 10 * time.Second
 
 func (c *DataServiceProvider) runCreate(set *protocol.Request) (*protocol.Response, error) {
 	rq := make(chan []core.Node, 3)
@@ -27,6 +27,7 @@ func (c *DataServiceProvider) runCreate(set *protocol.Request) (*protocol.Respon
 		ringNode := nodes[0]
 		resp, err := c.clientCreate(&ringNode, set)
 		if err != nil {
+			core.AppLog.Warn().Msgf("primary create failed node=%s err=%s", ringNode.RpcEndpoint, err.Error())
 			retry.Reties--
 			continue
 		}
