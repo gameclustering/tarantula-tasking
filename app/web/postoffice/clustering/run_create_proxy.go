@@ -1,11 +1,14 @@
 package clustering
 
 import (
-	context "context"
+	"context"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
 )
+
+const CLIENT_TIMEOUT = 2 * time.Second
 
 func (c *DataServiceProvider) runCreate(set *protocol.Request) (*protocol.Response, error) {
 	rq := make(chan []core.Node, 3)
@@ -14,9 +17,9 @@ func (c *DataServiceProvider) runCreate(set *protocol.Request) (*protocol.Respon
 	var rt uint32
 	if set.Prefix > 0 {
 		rt = set.Prefix
-	} else {	
+	} else {
 		rt = c.Mll.RingToken(set.Data.Key)
-		core.AppLog.Debug().Msgf("using key hash %d",rt)
+		core.AppLog.Debug().Msgf("using key hash %d", rt)
 	}
 	for retry.Reties > 0 {
 		c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: rt, Replicas: REPLICA_MAX, Async: rq}
@@ -33,12 +36,15 @@ func (c *DataServiceProvider) runCreate(set *protocol.Request) (*protocol.Respon
 			continue
 		}
 		retry.Suc = true
+		// replicate to slaves asynchronously — primary success is sufficient for the caller
 		slaves := nodes[1:]
 		for _, slave := range slaves {
-			_, err := c.clientCreate(&slave, set)
-			if err != nil {
-				core.AppLog.Debug().Msgf("error on slave %s", err.Error())
-			}
+			s := slave
+			go func() {
+				if _, err := c.clientCreate(&s, set); err != nil {
+					core.AppLog.Debug().Msgf("slave replication error %s", err.Error())
+				}
+			}()
 		}
 		break
 	}
@@ -50,6 +56,8 @@ func (m *DataServiceProvider) clientCreate(target *core.Node, request *protocol.
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: "no tcp connect"}, err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), CLIENT_TIMEOUT)
+	defer cancel()
 	dsp := protocol.NewDataServiceClient(conn.Conn)
-	return dsp.Create(context.Background(), request)
+	return dsp.Create(ctx, request)
 }
