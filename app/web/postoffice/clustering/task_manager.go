@@ -111,13 +111,13 @@ func (m *TaskManager) start(j *JobResource) {
 
 func (m *TaskManager) stop(t *JobResource) {
 	t.canceled = true
-	
 	t.jb.Description("job timeout").End(time.Now())
 	tr := m.trs[t.resource.Meta.TaskId]
 	tr.canceled = true
 	tr.resource.Meta.State = protocol.TCC_FINISHED
-	tr.resource.Validator.Meta.State = protocol.TCC_FINISHED
-	//tr.resource.Job.Meta.State = protocol.TCC_FINISHED
+	if tr.resource.Validator != nil {
+		tr.resource.Validator.Meta.State = protocol.TCC_FINISHED
+	}
 	m.end(tr)
 }
 

@@ -5,7 +5,6 @@ import (
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
-	"gameclustering.com/internal/util"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -33,33 +32,28 @@ func (v *PlanObjectCreate) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
-	phase := cfg.Resolve(plan.Env, "deploy")
+	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	gcpKey, err := v.Cluster().AuthKey("gcp")
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
 	if err != nil {
-		return fmt.Errorf("gcp auth key: %w", err)
+		return fmt.Errorf("%s auth key: %w", plan.Vendor, err)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
-	if err := gcp.Auth(); err != nil {
-		return fmt.Errorf("gcp auth: %w", err)
+	platform, err := newPlatform(plan.Vendor, deployPhase, platformKey)
+	if err != nil {
+		return fmt.Errorf("platform init: %w", err)
 	}
-	defer gcp.Close()
+	defer platform.Close()
 
-	for i := 1; i <= phase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
-		if _, err := gcp.Get(name); err == nil {
-			core.AppLog.Info().Msgf("instance %s already exists, skipping", name)
-			continue
+	for i := 1; i <= deployPhase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
+		if err := platform.Provision(name); err != nil {
+			return fmt.Errorf("provision %s: %w", name, err)
 		}
-		core.AppLog.Info().Msgf("creating instance %s", name)
-		if err := gcp.Insert(name, phase.MachineType, phase.ImageType); err != nil {
-			return fmt.Errorf("create instance %s: %w", name, err)
-		}
-		core.AppLog.Info().Msgf("instance %s created", name)
+		core.AppLog.Info().Msgf("create: instance %s provisioned", name)
 	}
 	return v.insert(t.Meta)
 }
@@ -81,30 +75,28 @@ func (v *PlanObjectCreate) cancel(t *protocol.Transaction) error {
 		core.AppLog.Warn().Msgf("cancel git auth key: %s", err)
 		return v.insert(t.Meta)
 	}
-	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, gitKey)
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel deploy config: %s", err)
 		return v.insert(t.Meta)
 	}
-	phase := cfg.Resolve(plan.Env, "deploy")
-
-	gcpKey, err := v.Cluster().AuthKey("gcp")
+	deployPhase := cfg.Resolve(plan.Env, "deploy")
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
 	if err != nil {
-		core.AppLog.Warn().Msgf("cancel gcp auth key: %s", err)
+		core.AppLog.Warn().Msgf("cancel platform key: %s", err)
 		return v.insert(t.Meta)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
-	if err := gcp.Auth(); err != nil {
-		core.AppLog.Warn().Msgf("cancel gcp auth: %s", err)
+	platform, err := newPlatform(plan.Vendor, deployPhase, platformKey)
+	if err != nil {
+		core.AppLog.Warn().Msgf("cancel platform init: %s", err)
 		return v.insert(t.Meta)
 	}
-	defer gcp.Close()
+	defer platform.Close()
 
-	for i := 1; i <= phase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
-		core.AppLog.Info().Msgf("deleting instance %s (cancel rollback)", name)
-		if err := gcp.Delete(name); err != nil {
-			core.AppLog.Warn().Msgf("delete instance %s: %s", name, err)
+	for i := 1; i <= deployPhase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
+		if err := platform.Remove(name); err != nil {
+			core.AppLog.Warn().Msgf("cancel: remove %s: %s", name, err)
 		}
 	}
 	return v.insert(t.Meta)

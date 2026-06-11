@@ -36,22 +36,23 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
-	phase := cfg.Resolve(plan.Env, "deploy")
+	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	gcpKey, err := v.Cluster().AuthKey("gcp")
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
 	if err != nil {
-		return fmt.Errorf("gcp auth key: %w", err)
+		return fmt.Errorf("%s auth key: %w", plan.Vendor, err)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
-	if err := gcp.Auth(); err != nil {
-		return fmt.Errorf("gcp auth: %w", err)
+	platform, err := newPlatform(plan.Vendor, deployPhase, platformKey)
+	if err != nil {
+		return fmt.Errorf("platform init: %w", err)
 	}
-	defer gcp.Close()
+	defer platform.Close()
 
+	// Write git key to a temp file for SCP uploads.
 	keyFile, err := os.CreateTemp("", "id_ed25519_*")
 	if err != nil {
 		return fmt.Errorf("create temp key file: %w", err)
@@ -63,41 +64,44 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	}
 	keyFile.Close()
 
-	for i := 1; i <= phase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
-		if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
+	sshUser := deployPhase.SshUser
+	if sshUser == "" {
+		sshUser = platform.SSHUser()
+	}
+
+	for i := 1; i <= deployPhase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
+		if err := v.setupInstance(platform, name, sshUser, keyFile.Name()); err != nil {
 			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
 		}
 	}
 	return v.insert(t.Meta)
 }
 
-func (v *PlanObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user string, name string, keyFile string) error {
-	ins, err := gcp.Get(name)
+func (v *PlanObjectUpdate) setupInstance(platform InstancePlatform, name, sshUser, keyFile string) error {
+	ip, err := platform.IP(name)
 	if err != nil {
-		return fmt.Errorf("get instance: %w", err)
+		return fmt.Errorf("get IP: %w", err)
 	}
-	natIP := ins.GetNetworkInterfaces()[0].AccessConfigs[0].GetNatIP()
-	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
+	ssh := util.SshClient{Host: ip, User: sshUser, PrivateKey: platform.SSHKey(), KHFile: "../.ssh/known_hosts"}
 
-	// New instances take 30-90s to boot; retry SSH until ready.
 	const maxWait = 5 * time.Minute
 	deadline := time.Now().Add(maxWait)
 	for {
 		if err := ssh.WithKey(); err == nil {
 			break
 		} else if time.Now().After(deadline) {
-			return fmt.Errorf("ssh connect: timed out waiting for instance to be ready: %w", err)
+			return fmt.Errorf("ssh connect: timed out: %w", err)
 		}
 		core.AppLog.Debug().Msgf("setup [%s]: waiting for SSH...", name)
 		time.Sleep(10 * time.Second)
 	}
 	defer ssh.Close()
 
-	if err := v.installDocker(ssh, user, name); err != nil {
+	if err := v.installDocker(ssh, sshUser, name); err != nil {
 		return fmt.Errorf("install docker: %w", err)
 	}
-	if err := v.uploadGitKey(ssh, user, keyFile, name); err != nil {
+	if err := v.uploadGitKey(ssh, sshUser, keyFile, name); err != nil {
 		return fmt.Errorf("upload git key: %w", err)
 	}
 	return nil
@@ -134,7 +138,6 @@ func (v *PlanObjectUpdate) uploadGitKey(ssh util.SshClient, user string, keyFile
 		return fmt.Errorf("open key file: %w", err)
 	}
 	defer f.Close()
-
 	remotePath := fmt.Sprintf("/home/%s/.ssh/id_ed25519", user)
 	if err := ssh.Upload(f, remotePath, "0600"); err != nil {
 		return fmt.Errorf("upload: %w", err)

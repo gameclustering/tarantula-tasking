@@ -36,45 +36,71 @@ func (v *PlanObjectBuild) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
-	// build phase gives us the instance (always #1); deploy phase has the services list
 	buildPhase := cfg.Resolve(plan.Env, "build")
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	gcpKey, err := v.Cluster().AuthKey("gcp")
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
 	if err != nil {
-		return fmt.Errorf("gcp auth key: %w", err)
+		return fmt.Errorf("%s auth key: %w", plan.Vendor, err)
 	}
 	dockerKey, err := v.Cluster().AuthKey("docker")
 	if err != nil {
 		return fmt.Errorf("docker auth key: %w", err)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: buildPhase.Zone}
-	if err := gcp.Auth(); err != nil {
-		return fmt.Errorf("gcp auth: %w", err)
-	}
-	defer gcp.Close()
 
-	name := fmt.Sprintf("%s-%02d", buildPhase.Prefix, 1)
-	if err := v.buildOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, gitKey.Git.Org, name, plan.AppRepo, dockerKey.Docker, deployPhase.Services); err != nil {
-		core.AppLog.Warn().Msgf("build on instance %s: %s", name, err.Error())
+	// Resolve the build host:
+	// - If buildPhase.BuildHost is set (e.g. "build.gameclustering.com"), SSH there directly.
+	// - Otherwise provision / look up the first instance (GCP pattern).
+	var buildIP string
+	var sshKey string
+	var sshUser string
+
+	if buildPhase.BuildHost != "" {
+		buildIP = buildPhase.BuildHost
+		platform, err := newPlatform(plan.Vendor, buildPhase, platformKey)
+		if err != nil {
+			return fmt.Errorf("platform init: %w", err)
+		}
+		defer platform.Close()
+		sshKey = platform.SSHKey()
+		sshUser = buildPhase.SshUser
+		if sshUser == "" {
+			sshUser = platform.SSHUser()
+		}
+	} else {
+		platform, err := newPlatform(plan.Vendor, buildPhase, platformKey)
+		if err != nil {
+			return fmt.Errorf("platform init: %w", err)
+		}
+		defer platform.Close()
+		name := fmt.Sprintf("%s-%02d", buildPhase.Prefix, 1)
+		ip, err := platform.IP(name)
+		if err != nil {
+			return fmt.Errorf("get build instance IP: %w", err)
+		}
+		buildIP = ip
+		sshKey = platform.SSHKey()
+		sshUser = buildPhase.SshUser
+		if sshUser == "" {
+			sshUser = platform.SSHUser()
+		}
+	}
+
+	if err := v.buildOnHost(buildIP, sshKey, sshUser, gitKey.Git.Org, plan.AppRepo, dockerKey.Docker, deployPhase.Services); err != nil {
+		core.AppLog.Warn().Msgf("build on host %s: %s", buildIP, err.Error())
 	}
 	return v.insert(t.Meta)
 }
 
-func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user string, org string, name string, repo *protocol.RepoObject, docker *protocol.DockerAccess, services []core.GcpServiceConfig) error {
+func (v *PlanObjectBuild) buildOnHost(host, sshKey, user, org string, repo *protocol.RepoObject, docker *protocol.DockerAccess, services []core.GcpServiceConfig) error {
 	if repo == nil || repo.Name == "" {
 		return nil
 	}
-	ins, err := gcp.Get(name)
-	if err != nil {
-		return fmt.Errorf("get instance: %w", err)
-	}
-	natIP := ins.GetNetworkInterfaces()[0].AccessConfigs[0].GetNatIP()
-	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
+	ssh := util.SshClient{Host: host, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
 	const maxWait = 5 * time.Minute
 	deadline := time.Now().Add(maxWait)
 	for {
@@ -83,7 +109,7 @@ func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user s
 		} else if time.Now().After(deadline) {
 			return fmt.Errorf("ssh connect: timed out: %w", err)
 		}
-		core.AppLog.Debug().Msgf("build [%s]: waiting for SSH...", name)
+		core.AppLog.Debug().Msgf("build [%s]: waiting for SSH...", host)
 		time.Sleep(10 * time.Second)
 	}
 	defer ssh.Close()
@@ -112,11 +138,10 @@ func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user s
 		if err := ssh.Run(cmd, &out); err != nil {
 			return fmt.Errorf("cmd %q: %w — %s", cmd, err, out.String())
 		}
-		core.AppLog.Debug().Msgf("build [%s]: %s", name, strings.TrimSpace(out.String()))
+		core.AppLog.Debug().Msgf("build [%s]: %s", host, strings.TrimSpace(out.String()))
 	}
 
 	if len(services) == 0 {
-		// single-image fallback: build with root Dockerfile
 		image := fmt.Sprintf("%s/%s:%s", docker.Username, repo.Name, ref)
 		cmds := []string{
 			fmt.Sprintf("cd %s && docker build -t %s .", repo.Name, image),
@@ -127,12 +152,11 @@ func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user s
 			if err := ssh.Run(cmd, &out); err != nil {
 				return fmt.Errorf("cmd %q: %w — %s", cmd, err, out.String())
 			}
-			core.AppLog.Debug().Msgf("build [%s]: %s", name, strings.TrimSpace(out.String()))
+			core.AppLog.Debug().Msgf("build [%s]: %s", host, strings.TrimSpace(out.String()))
 		}
 		return nil
 	}
 
-	// build and push each service image using docker_application_build
 	for _, svc := range services {
 		parts := strings.SplitN(svc.Name, ".", 2)
 		appName := svc.Name
@@ -147,9 +171,9 @@ func (v *PlanObjectBuild) buildOnInstance(gcp util.GcpApi, sshKey string, user s
 		for _, cmd := range cmds {
 			out.Reset()
 			if err := ssh.Run(cmd, &out); err != nil {
-				return fmt.Errorf("build [%s/%s] %q: %w — %s", name, svc.Name, cmd, err, out.String())
+				return fmt.Errorf("build [%s/%s] %q: %w — %s", host, svc.Name, cmd, err, out.String())
 			}
-			core.AppLog.Debug().Msgf("build [%s/%s]: %s", name, svc.Name, strings.TrimSpace(out.String()))
+			core.AppLog.Debug().Msgf("build [%s/%s]: %s", host, svc.Name, strings.TrimSpace(out.String()))
 		}
 	}
 	return nil

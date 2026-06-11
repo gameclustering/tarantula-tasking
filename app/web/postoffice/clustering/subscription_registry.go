@@ -1,6 +1,7 @@
 package clustering
 
 import (
+	"sort"
 	"strings"
 
 	"gameclustering.com/internal/core"
@@ -11,6 +12,7 @@ type sub func(sub core.Subscription)
 type SubscriptionRegistry struct {
 	topicEnds map[core.TopicKey]map[string]core.Subscription
 	cPools    map[core.TopicKey]*core.RpcConnPool
+	roundIdx  map[string]int // round-robin counter per "topic#tag"
 	auth      core.Authenticator
 	caCert    []byte
 }
@@ -59,6 +61,39 @@ func (s *SubscriptionRegistry) topic(req TopicRequest) []core.Subscription {
 		}
 	}
 	return subs
+}
+
+// pick returns the next subscriber for the given task name and tag using
+// round-robin. Tag scopes the pool to a specific environment; empty tag
+// matches any subscriber. Each call advances the counter independently,
+// so reserve and confirm phases can land on different nodes.
+func (s *SubscriptionRegistry) pick(name, tag string) *core.Subscription {
+	type entry struct {
+		ep string
+		cp *core.RpcConnPool
+	}
+	entries := make([]entry, 0)
+	for k, subMap := range s.topicEnds {
+		if k.Topic != name {
+			continue
+		}
+		for _, sub := range subMap {
+			if tag == "" || sub.Tag == tag {
+				entries = append(entries, entry{ep: k.Endpoint, cp: s.cPools[k]})
+				break // one entry per endpoint
+			}
+		}
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].ep < entries[j].ep })
+	key := name + "#" + tag
+	idx := s.roundIdx[key] % len(entries)
+	s.roundIdx[key]++
+	e := entries[idx]
+	result := core.Subscription{Topic: name, Endpoint: e.ep, CPool: e.cp}
+	return &result
 }
 
 func (s *SubscriptionRegistry) list(prefixed bool) []core.Subscription {

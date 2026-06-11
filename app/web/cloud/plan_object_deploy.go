@@ -35,25 +35,25 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
-	phase := cfg.Resolve(plan.Env, "deploy")
+	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	gcpKey, err := v.Cluster().AuthKey("gcp")
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
 	if err != nil {
-		return fmt.Errorf("gcp auth key: %w", err)
+		return fmt.Errorf("%s auth key: %w", plan.Vendor, err)
 	}
 	dockerKey, err := v.Cluster().AuthKey("docker")
 	if err != nil {
 		return fmt.Errorf("docker auth key: %w", err)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
-	if err := gcp.Auth(); err != nil {
-		return fmt.Errorf("gcp auth: %w", err)
+	platform, err := newPlatform(plan.Vendor, deployPhase, platformKey)
+	if err != nil {
+		return fmt.Errorf("platform init: %w", err)
 	}
-	defer gcp.Close()
+	defer platform.Close()
 
 	ref := ""
 	if plan.AppRepo != nil {
@@ -66,14 +66,19 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 		ref = "latest"
 	}
 
+	sshUser := deployPhase.SshUser
+	if sshUser == "" {
+		sshUser = platform.SSHUser()
+	}
+
 	var firstNodeIP string
-	for i := 1; i <= phase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
+	for i := 1; i <= deployPhase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
 		clusterBootstrap := ""
 		if i > 1 && firstNodeIP != "" {
 			clusterBootstrap = fmt.Sprintf("http://%s:8080", firstNodeIP)
 		}
-		ip, err := v.deployOnInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, i, ref, phase.Services, plan.AppRepo, dockerKey.Docker, v.F.Vlt.Host, v.F.Vlt.Token, clusterBootstrap)
+		ip, err := v.deployOnInstance(platform, name, sshUser, i, ref, deployPhase.Services, plan.AppRepo, dockerKey.Docker, v.F.Vlt.Host, v.F.Vlt.Token, clusterBootstrap)
 		if err != nil {
 			core.AppLog.Warn().Msgf("deploy on instance %s: %s", name, err.Error())
 		} else if firstNodeIP == "" {
@@ -83,13 +88,12 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 	return v.insert(t.Meta)
 }
 
-func (v *PlanObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey, user, name string, seq int, ref string, services []core.GcpServiceConfig, repo *protocol.RepoObject, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string) (string, error) {
-	ins, err := gcp.Get(name)
+func (v *PlanObjectDeploy) deployOnInstance(platform InstancePlatform, name, sshUser string, seq int, ref string, services []core.GcpServiceConfig, repo *protocol.RepoObject, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string) (string, error) {
+	ip, err := platform.IP(name)
 	if err != nil {
-		return "", fmt.Errorf("get instance: %w", err)
+		return "", fmt.Errorf("get IP: %w", err)
 	}
-	natIP := ins.GetNetworkInterfaces()[0].AccessConfigs[0].GetNatIP()
-	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
+	ssh := util.SshClient{Host: ip, User: sshUser, PrivateKey: platform.SSHKey(), KHFile: "../.ssh/known_hosts"}
 	if err := ssh.WithKey(); err != nil {
 		return "", fmt.Errorf("ssh connect: %w", err)
 	}
@@ -110,12 +114,12 @@ func (v *PlanObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey, user, name 
 
 	if len(services) == 0 {
 		if repo == nil || repo.Name == "" {
-			return natIP, nil
+			return ip, nil
 		}
 		if err := v.runContainer(ssh, name, repo.Name, ref, "", "", docker, vaultHost, vaultToken, "", seq, &out); err != nil {
 			return "", err
 		}
-		return natIP, nil
+		return ip, nil
 	}
 
 	for _, svc := range services {
@@ -127,7 +131,7 @@ func (v *PlanObjectDeploy) deployOnInstance(gcp util.GcpApi, sshKey, user, name 
 			return "", err
 		}
 	}
-	return natIP, nil
+	return ip, nil
 }
 
 func (v *PlanObjectDeploy) runContainer(ssh util.SshClient, instanceName, svcName, ref, network, httpBinding string, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string, seq int, out *bytes.Buffer) error {
@@ -144,7 +148,6 @@ func (v *PlanObjectDeploy) runContainer(ssh util.SshClient, instanceName, svcNam
 		flags = append(flags, fmt.Sprintf("-e HTTP_BINDING='%s'", httpBinding))
 	}
 	if strings.Contains(svcName, "postoffice") {
-		// always set CLUSTER_BOOTSTRAP (even empty for node 1) to override the baked-in conf value
 		flags = append(flags, fmt.Sprintf("-e CLUSTER_BOOTSTRAP='%s'", clusterBootstrap))
 	} else {
 		flags = append(flags, "-e POST_OFFICE_HOST=127.0.0.1")

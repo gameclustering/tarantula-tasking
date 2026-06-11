@@ -11,7 +11,7 @@ import (
 func (c *DataServiceProvider) runAskReserve(t *protocol.Transaction) (*protocol.Response, error) {
 	rq := make(chan []core.Subscription, 3)
 	defer close(rq)
-	c.DRequest <- TopicRequest{Opt: TASK_REGISTER, Subs: rq, NodeId: t.Meta.NodeId, Tag: t.Meta.Tag, Name: t.Meta.Name}
+	c.DRequest <- TopicRequest{Opt: TASK_ASSIGN, Subs: rq, Tag: t.Meta.Tag, Name: t.Meta.Name}
 	subs := <-rq
 	for _, sub := range subs {
 		conn, err := sub.CPool.Conn()
@@ -22,6 +22,6 @@ func (c *DataServiceProvider) runAskReserve(t *protocol.Transaction) (*protocol.
 		dsp := protocol.NewTransactionServiceClient(conn.Conn)
 		return dsp.AskReserve(context.Background(), t)
 	}
-	core.AppLog.Warn().Msgf("no subscrition available %v", t.Meta)
+	core.AppLog.Warn().Msgf("no subscription available for reserve %v", t.Meta)
 	return &protocol.Response{Successful: false}, fmt.Errorf("no subscription available")
 }

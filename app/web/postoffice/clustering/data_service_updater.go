@@ -30,6 +30,11 @@ const (
 	TOPIC_LIST uint32 = 6
 	TASK_LIST  uint32 = 7
 
+	// TASK_ASSIGN picks one subscriber via round-robin scoped by tag.
+	// Reserve and confirm phases call this independently so they can land
+	// on different nodes.
+	TASK_ASSIGN uint32 = 8
+
 	TRANS_SUB_PREFIX string = "_t_"
 )
 
@@ -168,6 +173,14 @@ func (m *DataServiceProvider) RingUpdated() {
 			case TASK_REGISTER:
 				req.Name = fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, req.Name)
 				req.Subs <- m.subscriptions.topic(req)
+			case TASK_ASSIGN:
+				name := fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, req.Name)
+				sub := m.subscriptions.pick(name, req.Tag)
+				if sub != nil {
+					req.Subs <- []core.Subscription{*sub}
+				} else {
+					req.Subs <- []core.Subscription{}
+				}
 			case TOPIC_LIST:
 				req.Subs <- m.subscriptions.list(false)
 			case TASK_LIST:
