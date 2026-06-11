@@ -87,9 +87,6 @@ func (g *GcpApi) Insert(name,machineType,imageType string) error {
 			Tags: &computepb.Tags{
 				Items: []string{"http-server", "https-server"},
 			},
-			Scheduling: &computepb.Scheduling{
-				ProvisioningModel: proto.String(computepb.Scheduling_SPOT.String()),
-			},
 			Disks: []*computepb.AttachedDisk{
 				{
 					InitializeParams: &computepb.AttachedDiskInitializeParams{
