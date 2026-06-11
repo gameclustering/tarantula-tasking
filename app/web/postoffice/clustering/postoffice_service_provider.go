@@ -159,6 +159,9 @@ func (c *DataServiceProvider) Issue(ctx context.Context, task *protocol.Task) (*
 	if err != nil {
 		return resp, err
 	}
+	if !resp.Successful {
+		return resp, fmt.Errorf("task create failed: %s", resp.Message)
+	}
 	return c.runSetup(task)
 }
 
