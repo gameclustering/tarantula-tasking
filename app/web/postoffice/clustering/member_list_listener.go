@@ -110,7 +110,7 @@ func (m *MemberListListener) Listen() {
 							continue // skip self — already registered via direct MSync in Subscribe
 						}
 						core.AppLog.Debug().Msgf("sending topic message to %s", mbr.FullAddress().Name)
-						m.SendReliable(mbr, util.ToJson(mr.Source))
+						m.SendToAddress(mbr.FullAddress(), util.ToJson(mr.Source))
 					}
 				}
 			case CLOSE_RING_OPT:
