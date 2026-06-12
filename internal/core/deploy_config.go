@@ -13,6 +13,7 @@ type PhaseConfig struct {
 	InstanceNumber int               `json:"instanceNumber"`
 	SshUser        string            `json:"sshUser"`
 	BuildHost      string            `json:"buildHost"` // pre-existing build server; empty means provision one
+	VaultHost      string            `json:"vaultHost"` // public vault URL for deployed containers; overrides worker's VAULT_HOST
 	Description    string            `json:"description"`
 	Services       []GcpServiceConfig `json:"services"` // fields are platform-agnostic
 	Settings       map[string]string  `json:"settings"` // platform-specific key-value pairs
@@ -84,6 +85,9 @@ func mergePhase(primary, fallback PhaseConfig) PhaseConfig {
 	}
 	if primary.BuildHost == "" {
 		primary.BuildHost = fallback.BuildHost
+	}
+	if primary.VaultHost == "" {
+		primary.VaultHost = fallback.VaultHost
 	}
 	if primary.Description == "" {
 		primary.Description = fallback.Description

@@ -71,6 +71,10 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 		sshUser = platform.SSHUser()
 	}
 
+	vaultHost := v.F.Vlt.Host
+	if deployPhase.VaultHost != "" {
+		vaultHost = deployPhase.VaultHost
+	}
 	var firstNodeIP string
 	for i := 1; i <= deployPhase.InstanceNumber; i++ {
 		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
@@ -78,7 +82,7 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 		if i > 1 && firstNodeIP != "" {
 			clusterBootstrap = fmt.Sprintf("http://%s:8080", firstNodeIP)
 		}
-		ip, err := v.deployOnInstance(platform, name, sshUser, i, ref, deployPhase.Services, plan.AppRepo, dockerKey.Docker, v.F.Vlt.Host, v.F.Vlt.Token, clusterBootstrap)
+		ip, err := v.deployOnInstance(platform, name, sshUser, i, ref, deployPhase.Services, plan.AppRepo, dockerKey.Docker, vaultHost, v.F.Vlt.Token, clusterBootstrap)
 		if err != nil {
 			core.AppLog.Warn().Msgf("deploy on instance %s: %s", name, err.Error())
 		} else if firstNodeIP == "" {
