@@ -8,6 +8,7 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
@@ -124,8 +125,16 @@ func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
 
 func (m *DataServiceProvider) RingUpdated() {
 	running := true
+	subSync := time.NewTicker(60 * time.Second)
+	defer subSync.Stop()
 	for running {
 		select {
+		case <-subSync.C:
+			m.subscriptions.lookup(func(sub core.Subscription) {
+				if sub.Endpoint == m.rpcEndpoint {
+					m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
+				}
+			})
 		case ringUpdate := <-m.RNode:
 			switch ringUpdate.State {
 			case NODE_STATE_SHUTDOWN:
