@@ -104,7 +104,11 @@ func (m *MemberListListener) Listen() {
 						}
 					}
 				} else {
+					localAddr := m.LocalNode().Address()
 					for _, mbr := range m.Members() {
+						if mbr.Address() == localAddr {
+							continue // skip self — already registered via direct MSync in Subscribe
+						}
 						core.AppLog.Debug().Msgf("sending topic message to %s", mbr.FullAddress().Name)
 						m.SendReliable(mbr, util.ToJson(mr.Source))
 					}
