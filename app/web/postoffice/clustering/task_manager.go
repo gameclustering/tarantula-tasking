@@ -85,6 +85,7 @@ func (m *TaskManager) schedule(t *TaskResource, job *protocol.Job) {
 }
 
 func (m *TaskManager) start(j *JobResource) {
+	core.AppLog.Info().Msgf("start job=%d task=%d txns=%d", j.resource.Meta.Id, j.resource.Meta.TaskId, len(j.resource.Transactions))
 	m.tms[j.resource.Meta.Id] = &Timeout{t: time.AfterFunc(time.Duration(j.resource.Meta.Timeout)*time.Second, func() {
 		m.updates <- &protocol.Meta{TaskId: j.resource.Meta.TaskId, JobId: j.resource.Meta.Id, State: protocol.TCC_JOB_TIMEOUT}
 	})}
@@ -293,6 +294,7 @@ func (m *TaskManager) Wait() {
 	for m.s.running {
 		select {
 		case task := <-m.tasks:
+			core.AppLog.Info().Msgf("Wait received task=%d prefix=%d", task.Meta.Id, task.Meta.Prefix)
 			tr := NewTaskResource(task, 1)
 			m.trs[task.Meta.Id] = tr
 			m.set(tr)

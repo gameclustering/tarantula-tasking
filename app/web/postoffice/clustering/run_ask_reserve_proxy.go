@@ -15,6 +15,7 @@ const (
 )
 
 func (c *DataServiceProvider) runAskReserve(t *protocol.Transaction) (*protocol.Response, error) {
+	core.AppLog.Info().Msgf("runAskReserve called txn=%d name=%s tag=%s", t.Meta.Id, t.Meta.Name, t.Meta.Tag)
 	for attempt := 0; attempt < reserveRetryMax && c.running; attempt++ {
 		rq := make(chan []core.Subscription, 3)
 		c.DRequest <- TopicRequest{Opt: TASK_ASSIGN, Subs: rq, Tag: t.Meta.Tag, Name: t.Meta.Name}
