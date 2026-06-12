@@ -31,7 +31,7 @@ type MemberlistManager struct {
 func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core.Sequence, vt *util.VaultClient) error {
 	m.MemberHashRing = &MemberHashRing{weight: NODE_WEIGHT, hLock: &sync.Mutex{}, auth: auth}
 	m.nodes = make([]core.Node, 0)
-	cfg := memberlist.DefaultLANConfig()
+	cfg := memberlist.DefaultWANConfig()
 	cfg.Name = m.Binding
 	if m.AdvertiseAddr != "" {
 		cfg.AdvertiseAddr = m.AdvertiseAddr
