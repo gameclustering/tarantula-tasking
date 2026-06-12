@@ -44,6 +44,9 @@ func (c *DataServiceProvider) runUpdate(set *protocol.Request) (*protocol.Respon
 }
 
 func (m *DataServiceProvider) clientUpdate(target *core.Node, request *protocol.Request) (*protocol.Response, error) {
+	if target.RpcEndpoint == m.rpcEndpoint {
+		return m.Update(context.Background(), request)
+	}
 	conn, err := target.CPool.Conn()
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: err.Error()}, err

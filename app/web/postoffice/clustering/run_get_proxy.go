@@ -20,6 +20,9 @@ func (c *DataServiceProvider) runGet(set *protocol.Request) (*protocol.Response,
 	c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: rt, Replicas: REPLICA_MAX, Async: rq}
 	nodes := <-rq
 	ringNode := nodes[0]
+	if ringNode.RpcEndpoint == c.rpcEndpoint {
+		return c.Get(context.Background(), set)
+	}
 	conn, err := ringNode.CPool.Conn()
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: err.Error()}, err

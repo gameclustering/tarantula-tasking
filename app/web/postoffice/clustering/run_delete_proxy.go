@@ -39,6 +39,9 @@ func (c *DataServiceProvider) runDelete(set *protocol.Request) (*protocol.Respon
 }
 
 func (m *DataServiceProvider) clientDelete(target *core.Node, request *protocol.Request) (*protocol.Response, error) {
+	if target.RpcEndpoint == m.rpcEndpoint {
+		return m.Delete(context.Background(), request)
+	}
 	conn, err := target.CPool.Conn()
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: err.Error()}, err

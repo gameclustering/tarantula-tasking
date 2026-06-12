@@ -18,6 +18,9 @@ func (c *DataServiceProvider) runSetup(t *protocol.Task) (*protocol.Response, er
 	c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: t.Meta.Prefix, Replicas: REPLICA_MAX, Async: rq}
 	nodes := <-rq
 	ringNode := nodes[0]
+	if ringNode.RpcEndpoint == c.rpcEndpoint {
+		return c.Setup(context.Background(), t)
+	}
 	conn, err := ringNode.CPool.Conn()
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: err.Error()}, err
