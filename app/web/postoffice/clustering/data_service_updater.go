@@ -50,6 +50,10 @@ type TopicRequest struct {
 	NodeId string
 	Tag    string
 	Name   string
+	// QChan is the Q channel of the Receive goroutine sending RECEIVER_REMOVE.
+	// The dispatcher only deletes the listener when this matches the current entry,
+	// preventing stale goroutines from evicting a freshly-registered listener.
+	QChan chan string
 
 	Async chan ReceiverAsync
 	Subs  chan []core.Subscription
@@ -162,10 +166,12 @@ func (m *DataServiceProvider) RingUpdated() {
 		case req := <-m.DRequest:
 			switch req.Opt {
 			case RECEIVER_START:
-				rev, ok := m.listeners[req.Name]
-				if !ok {
-					rev = ReceiverAsync{Rev: make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE), Q: make(chan string, 2), Subs: make(map[string]core.Subscription)}
-					m.listeners[req.Name] = rev
+				_, existed := m.listeners[req.Name]
+				// Always allocate a fresh channel pair so each Receive goroutine
+				// has exclusive ownership — prevents double-close on reconnect.
+				rev := ReceiverAsync{Rev: make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE), Q: make(chan string, 2), Subs: make(map[string]core.Subscription)}
+				m.listeners[req.Name] = rev
+				if !existed {
 					m.listenerPool = append(m.listenerPool, req.Name)
 				}
 				req.Async <- rev
@@ -176,7 +182,11 @@ func (m *DataServiceProvider) RingUpdated() {
 				}
 
 			case RECEIVER_REMOVE:
-				delete(m.listeners, req.Name)
+				// Only delete if the Q channel matches — stale goroutines must not
+				// evict a freshly-registered listener created during reconnect.
+				if current, ok := m.listeners[req.Name]; ok && current.Q == req.QChan {
+					delete(m.listeners, req.Name)
+				}
 			case TOPIC_REGISTER:
 				req.Subs <- m.subscriptions.topic(req)
 			case TASK_REGISTER:
