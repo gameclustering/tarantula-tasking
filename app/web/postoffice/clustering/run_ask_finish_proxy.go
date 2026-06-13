@@ -15,14 +15,21 @@ func (c *DataServiceProvider) runAskFinish(t *protocol.Meta) (*protocol.Response
 	c.DRequest <- TopicRequest{Opt: TASK_ASSIGN, Subs: rq, Tag: t.Tag, Name: t.Name}
 	subs := <-rq
 	for _, sub := range subs {
+		core.AppLog.Info().Msgf("runAskFinish dispatching txn=%d name=%s to=%s", t.Id, t.Name, sub.Endpoint)
+		if sub.Endpoint == c.rpcEndpoint {
+			return c.AskFinish(context.Background(), t)
+		}
 		conn, err := sub.CPool.Conn()
 		if err != nil {
 			core.AppLog.Warn().Msgf("no connection available on sub %v", sub)
 			continue
 		}
-		core.AppLog.Info().Msgf("runAskFinish dispatching txn=%d name=%s to=%s", t.Id, t.Name, sub.Endpoint)
 		dsp := protocol.NewTransactionServiceClient(conn.Conn)
-		return dsp.AskFinish(context.Background(), t)
+		resp, err := dsp.AskFinish(context.Background(), t)
+		if err != nil {
+			core.AppLog.Warn().Msgf("runAskFinish gRPC failed txn=%d endpoint=%s err=%s", t.Id, sub.Endpoint, err.Error())
+		}
+		return resp, err
 	}
 	core.AppLog.Warn().Msgf("no subscription available for finish %v", t)
 	return &protocol.Response{Successful: false}, fmt.Errorf("no subscription available")
