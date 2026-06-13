@@ -217,6 +217,7 @@ func (m *DataServiceProvider) RingUpdated() {
 			case core.TRANS_MAIL:
 				tn := fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, msg.Transaction.Meta.Name)
 				lk := ""
+				delivered := false
 				for {
 					if len(m.listenerPool) == 0 {
 						break
@@ -232,13 +233,18 @@ func (m *DataServiceProvider) RingUpdated() {
 					}
 					_, subed := nc.Subs[tn]
 					if subed {
+						core.AppLog.Info().Msgf("TRANS_MAIL delivered txn=%d name=%s to=%s", msg.Transaction.Meta.Id, msg.Transaction.Meta.Name, nk)
 						nc.Rev <- msg
 						m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
+						delivered = true
 						break
 					}
 					//mark last one to break loop if fullly iterated
 					lk = nk
 					m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
+				}
+				if !delivered {
+					core.AppLog.Warn().Msgf("TRANS_MAIL dropped txn=%d name=%s pool=%d", msg.Transaction.Meta.Id, msg.Transaction.Meta.Name, len(m.listenerPool))
 				}
 			}
 		}

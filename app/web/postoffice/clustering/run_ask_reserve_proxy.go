@@ -27,8 +27,13 @@ func (c *DataServiceProvider) runAskReserve(t *protocol.Transaction) (*protocol.
 				core.AppLog.Warn().Msgf("no connection available on sub %v", sub)
 				continue
 			}
+			core.AppLog.Info().Msgf("runAskReserve dispatching txn=%d name=%s to=%s", t.Meta.Id, t.Meta.Name, sub.Endpoint)
 			dsp := protocol.NewTransactionServiceClient(conn.Conn)
-			return dsp.AskReserve(context.Background(), t)
+			resp, err := dsp.AskReserve(context.Background(), t)
+			if err != nil {
+				core.AppLog.Warn().Msgf("runAskReserve AskReserve failed txn=%d endpoint=%s err=%s", t.Meta.Id, sub.Endpoint, err.Error())
+			}
+			return resp, err
 		}
 		if attempt+1 < reserveRetryMax {
 			core.AppLog.Warn().Msgf("no subscription available for reserve %v, retry %d/%d in %s", t.Meta, attempt+1, reserveRetryMax, reserveRetryInterval)

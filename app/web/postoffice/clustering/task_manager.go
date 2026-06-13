@@ -1,3 +1,4 @@
+
 package clustering
 
 import (
@@ -9,6 +10,11 @@ import (
 	"gameclustering.com/internal/protocol"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// reserveFirstRetryTimeout is the delay before the first reserve retry.
+// Kept short so a dropped TRANS_MAIL (e.g. reconnect window) is recovered well
+// within the JOB_TIMEOUT window. Subsequent retries use tc.Meta.Timeout.
+const reserveFirstRetryTimeout = 60 * time.Second
 
 type TaskResource struct {
 	resource *protocol.Task
@@ -96,7 +102,9 @@ func (m *TaskManager) start(j *JobResource) {
 		tc.Meta.State = protocol.TCC_RESERVING
 		tc.Meta.Time = timestamppb.Now()
 		tc.Meta.Prefix = j.resource.Meta.Prefix
-		m.tms[tc.Meta.Id] = &Timeout{t: time.AfterFunc(time.Duration(tc.Meta.Timeout)*time.Second, func() {
+		// First retry fires at reserveFirstRetryTimeout (60s) so a dropped
+		// TRANS_MAIL is recovered quickly; subsequent retries use tc.Meta.Timeout.
+		m.tms[tc.Meta.Id] = &Timeout{t: time.AfterFunc(reserveFirstRetryTimeout, func() {
 			m.updates <- &protocol.Meta{TaskId: j.resource.Meta.TaskId, JobId: j.resource.Meta.Id, Id: tc.Meta.Id, State: protocol.TCC_TRANSACTION_TIMEOUT}
 		}), p: func() {
 			core.AppLog.Debug().Msgf("retry to reserve with timeout on %d", tc.Meta.Id)
@@ -118,6 +126,9 @@ func (m *TaskManager) stop(t *JobResource) {
 	tr.resource.Meta.State = protocol.TCC_FINISHED
 	if tr.resource.Validator != nil {
 		tr.resource.Validator.Meta.State = protocol.TCC_FINISHED
+	}
+	for _, tc := range t.resource.Transactions {
+		m.closeTimer(tc.Meta.Id)
 	}
 	m.end(tr)
 }
