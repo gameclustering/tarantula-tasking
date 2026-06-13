@@ -68,8 +68,8 @@ func (p *RpcConnPool) connect(target string) (*grpc.ClientConn, error) {
 		MinConnectTimeout: 5 * time.Second,
 	}
 	kp := keepalive.ClientParameters{
-		Time:                10 * time.Second,
-		Timeout:             5 * time.Second,
+		Time:                30 * time.Second,
+		Timeout:             10 * time.Second,
 		PermitWithoutStream: true,
 	}
 	for {

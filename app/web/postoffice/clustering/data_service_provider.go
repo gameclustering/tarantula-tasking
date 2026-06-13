@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/persistence"
@@ -14,6 +15,7 @@ import (
 	"gameclustering.com/internal/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -164,7 +166,8 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	if err != nil {
 		panic(err)
 	}
-	rpc := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(c.auditCall), grpc.StreamInterceptor(c.auditStreaming))
+	ep := keepalive.EnforcementPolicy{MinTime: 30 * time.Second, PermitWithoutStream: true}
+	rpc := grpc.NewServer(grpc.Creds(creds), grpc.KeepaliveEnforcementPolicy(ep), grpc.UnaryInterceptor(c.auditCall), grpc.StreamInterceptor(c.auditStreaming))
 	c.server = rpc
 	protocol.RegisterDataServiceServer(rpc, c)
 	protocol.RegisterPostofficeServiceServer(rpc, c)

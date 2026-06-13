@@ -110,11 +110,20 @@ func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
 	}
 	if sub.Deleting {
 		m.subscriptions.del(sub)
-		listener, ok := m.listeners[sub.NodeId]
-		if !ok {
-			return
+		// Only local subscriptions have listener entries; remote ones are routing-only.
+		if sub.Endpoint == m.rpcEndpoint {
+			if listener, ok := m.listeners[sub.NodeId]; ok {
+				delete(listener.Subs, sub.Topic)
+			}
 		}
-		delete(listener.Subs, sub.Topic)
+		return
+	}
+	m.subscriptions.add(sub)
+	// Gossiped subscriptions from remote postoffices are for pick() routing only.
+	// Creating phantom Rev channels for them causes TRANS_MAIL to be silently
+	// dropped into unread channels when a remote worker's entry appears first in
+	// the listenerPool before the locally-connected worker.
+	if sub.Endpoint != m.rpcEndpoint {
 		return
 	}
 	listener, ok := m.listeners[sub.NodeId]
@@ -123,7 +132,6 @@ func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
 		m.listeners[sub.NodeId] = listener
 		m.listenerPool = append(m.listenerPool, sub.NodeId)
 	}
-	m.subscriptions.add(sub)
 	listener.Subs[sub.Topic] = sub
 }
 
