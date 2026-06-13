@@ -336,25 +336,28 @@ func (m *TaskManager) Wait() {
 			tj := m.tjs[meta.JobId]
 			switch meta.State {
 			case protocol.TCC_CONFIRMED:
+				core.AppLog.Info().Msgf("TCC_CONFIRMED txn=%d job=%d task=%d", meta.Id, meta.JobId, meta.TaskId)
 				m.closeTimer(meta.Id)
 				if tj.join(meta) {
 					m.confirmed(tj)
 				}
 			case protocol.TCC_CANCELED:
+				core.AppLog.Info().Msgf("TCC_CANCELED txn=%d job=%d task=%d", meta.Id, meta.JobId, meta.TaskId)
 				m.closeTimer(meta.Id)
 				m.canceled(meta, tj)
 
 			case protocol.TCC_FINISHED:
+				core.AppLog.Info().Msgf("TCC_FINISHED txn=%d job=%d task=%d", meta.Id, meta.JobId, meta.TaskId)
 				m.closeTimer(meta.Id)
 				if tj.join(meta) {
 					m.finished(tj)
 				}
 
 			case protocol.TCC_TRANSACTION_TIMEOUT:
-				core.AppLog.Debug().Msgf("task transaction timeout %d", tr.jobIndex)
+				core.AppLog.Info().Msgf("TCC_TRANSACTION_TIMEOUT txn=%d job=%d task=%d", meta.Id, meta.JobId, meta.TaskId)
 				m.timeout(meta.Id, meta)
 			case protocol.TCC_JOB_TIMEOUT:
-				core.AppLog.Debug().Msgf("task job timeout %d", tr.jobIndex)
+				core.AppLog.Info().Msgf("TCC_JOB_TIMEOUT job=%d task=%d", meta.JobId, meta.TaskId)
 				m.timeout(meta.JobId, meta)
 				m.stop(tj)
 			}
