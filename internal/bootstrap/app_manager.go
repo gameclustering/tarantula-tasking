@@ -67,7 +67,7 @@ func (s *AppManager) Start(f core.Env) error {
 		}
 		retries--
 		if retries == 0 {
-			panic(err)
+			return err
 		}
 		time.Sleep(3 * time.Second)
 		core.AppLog.Warn().Msgf("load client credentials from %s retries remaining %d", f.Vlt.Host, retries)
@@ -78,38 +78,39 @@ func (s *AppManager) Start(f core.Env) error {
 
 	err := s.cluster.connect(f.PostOfficeHost)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
-	if f.SqlEnabled {
-		key, err := s.cluster.AuthKey("sql")
-		if err != nil {
-			panic(err)
-		}
-		err = os.WriteFile(core.CERT_NAME, []byte(key.Sql.Cert), 0600)
-		if err != nil {
-			panic(err)
-		}
-		//sslMode := fmt.Sprintf("sslmode=verify-full&sslrootcert=%s",core.CERT_NAME)
-		sslMode := fmt.Sprintf("sslmode=require&sslrootcert=%s", core.CERT_NAME)
-		//postgres://[user]:[password]@[host]:5432
-		user := key.Sql.User
-		pwd := key.Sql.Password
-		hst := key.Sql.Host
-		pgs := fmt.Sprintf("postgres://%s:%s@%s:5432", user, pwd, hst)
-		core.AppLog.Info().Msgf("connecting sql %s", hst)
-		dbCreate := persistence.Postgresql{Url: fmt.Sprintf("%s/%s?%s", pgs, "postgres", sslMode)}
-		err = dbCreate.CreateDatabase(fmt.Sprintf("CREATE DATABASE %s_%s_%s", f.Prefix, "tarantula", f.GroupName))
-		if err != nil {
-			core.AppLog.Warn().Msgf("failed to create database %s", err.Error())
-		}
+	if !f.SqlEnabled {
+		return nil
+	}
+	key, err := s.cluster.AuthKey("sql")
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(core.CERT_NAME, []byte(key.Sql.Cert), 0600)
+	if err != nil {
+		return err
+	}
+	//sslMode := fmt.Sprintf("sslmode=verify-full&sslrootcert=%s",core.CERT_NAME)
+	sslMode := fmt.Sprintf("sslmode=require&sslrootcert=%s", core.CERT_NAME)
+	//postgres://[user]:[password]@[host]:5432
+	user := key.Sql.User
+	pwd := key.Sql.Password
+	hst := key.Sql.Host
+	pgs := fmt.Sprintf("postgres://%s:%s@%s:5432", user, pwd, hst)
+	core.AppLog.Info().Msgf("connecting sql %s", hst)
+	dbCreate := persistence.Postgresql{Url: fmt.Sprintf("%s/%s?%s", pgs, "postgres", sslMode)}
+	err = dbCreate.CreateDatabase(fmt.Sprintf("CREATE DATABASE %s_%s_%s", f.Prefix, "tarantula", f.GroupName))
+	if err != nil {
+		core.AppLog.Warn().Msgf("failed to create database %s", err.Error())
+	}
 
-		sql := persistence.Postgresql{Url: fmt.Sprintf("%s/%s_tarantula_%s?%s", pgs, f.Prefix, f.GroupName, sslMode)}
-		err = sql.Create()
-		if err != nil {
-			panic(err)
-		}
-		s.Sql = sql
+	sql := persistence.Postgresql{Url: fmt.Sprintf("%s/%s_tarantula_%s?%s", pgs, f.Prefix, f.GroupName, sslMode)}
+	err = sql.Create()
+	if err != nil {
+		return err
 	}
+	s.Sql = sql
 	return nil
 }
 

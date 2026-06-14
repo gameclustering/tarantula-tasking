@@ -22,14 +22,14 @@ type Vault struct {
 }
 
 type Env struct {
-	Prefix         string `json:"Prefix"`
-	Standalone     bool   `json:"Standalone"`
-	GroupName      string `json:"GroupName"`
-	NodeName       string `json:"NodeName"`
-	NodeId         int64  `json:"NodeId"`
+	Prefix                string `json:"Prefix"`
+	Standalone            bool   `json:"Standalone"`
+	GroupName             string `json:"GroupName"`
+	NodeName              string `json:"NodeName"`
+	NodeId                int64  `json:"NodeId"`
 	PostOfficeHost        string `json:"PostOfficeHost"`
 	PostOfficeAdvertiseIP string `json:"PostOfficeAdvertiseIP"`
-	HttpBinding    string `json:"HttpBinding"`
+	HttpBinding           string `json:"HttpBinding"`
 
 	SqlEnabled       bool   `json:"SqlEnabled"`
 	HomeDir          string `json:"HomeDir"`
@@ -79,7 +79,7 @@ func (f *Env) Load(fn string) error {
 		f.Prefix = c
 	}
 	//use SEQ to keep nodeId unique in cluster scope
-	//if no SEQ config, nodeId is fron the json config , also need to keep it unique in cluster scope
+	//if no SEQ config, nodeId is fronm the json config , also need to keep it unique in cluster scope
 	c, exists = os.LookupEnv("SEQ")
 	if exists {
 		seq, err := strconv.Atoi(c)

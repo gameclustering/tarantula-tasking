@@ -20,8 +20,11 @@ func (s *CloudService) Config() string {
 }
 
 func (s *CloudService) Start(f core.Env) error {
-	s.AppManager.Start(f)
-	if err := s.createSchema(); err != nil {
+	err := s.AppManager.Start(f)
+	if err != nil {
+		return err
+	}
+	if err = s.createSchema(); err != nil {
 		return err
 	}
 	s.Cluster().Subscribe(event.MESSAGE_TOPIC_NAME, &protocol.TopicEventListener{C: func() proto.Message {
