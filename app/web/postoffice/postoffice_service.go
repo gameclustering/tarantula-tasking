@@ -61,6 +61,8 @@ func (s *PostofficeService) Start(env core.Env) error {
 	s.mm = &m
 	s.started = true
 	http.HandleFunc("/postoffice/seeds", bootstrap.Logging(&ClusterSeedGet{s}))
+	http.HandleFunc("/postoffice/health", bootstrap.Logging(&ClusterHealthCheck{s}))
+	
 	registerServiceProxy("/admin/", os.Getenv("ADMIN_HOST"), "http://admin:8080")
 	registerServiceProxy("/cloud/", os.Getenv("CLOUD_HOST"), "http://cloud:8080")
 	core.AppLog.Info().Msgf("postoffice service started %s %s", env.HttpBinding, env.HomeDir)
