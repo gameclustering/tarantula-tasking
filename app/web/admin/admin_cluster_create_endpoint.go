@@ -36,8 +36,8 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "appRepo name is required"}))
 		return
 	}
-	if plan.Vendor == "" {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "vendor is required"}))
+	if plan.Platform == "" {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "platform is required"}))
 		return
 	}
 

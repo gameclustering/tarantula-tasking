@@ -25,26 +25,26 @@ type InstancePlatform interface {
 	SSHUser() string
 }
 
-// newPlatform constructs the right InstancePlatform for the given vendor.
+// newPlatform constructs the right InstancePlatform for the given platform.
 // phase provides the config for the current operation (deploy or build).
-// key is the vault AuthKey for the vendor (AuthKey("gcp") or AuthKey("vps")).
-func newPlatform(vendor string, phase core.PhaseConfig, key *protocol.AuthKey) (InstancePlatform, error) {
-	switch vendor {
+// key is the vault AuthKey for the platform (AuthKey("gcp") or AuthKey("vps")).
+func newPlatform(platform string, phase core.PhaseConfig, key *protocol.AuthKey) (InstancePlatform, error) {
+	switch platform {
 	case "gcp":
 		return newGcpPlatform(phase, key)
 	case "vultr":
 		return newVultrPlatform(phase, key)
 	default:
-		return nil, fmt.Errorf("unknown vendor %q", vendor)
+		return nil, fmt.Errorf("unknown platform %q", platform)
 	}
 }
 
-// platformVaultKey returns the vault key name for a given vendor.
-func platformVaultKey(vendor string) string {
-	switch vendor {
+// platformVaultKey returns the vault key name for a given platform.
+func platformVaultKey(platform string) string {
+	switch platform {
 	case "vultr":
 		return "vps"
 	default:
-		return vendor // "gcp" → "gcp"
+		return platform // "gcp" → "gcp"
 	}
 }

@@ -32,17 +32,17 @@ func (v *PlanObjectCreate) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, plan.Name, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Platform))
 	if err != nil {
-		return fmt.Errorf("%s auth key: %w", plan.Vendor, err)
+		return fmt.Errorf("%s auth key: %w", plan.Platform, err)
 	}
-	platform, err := newPlatform(plan.Vendor, deployPhase, platformKey)
+	platform, err := newPlatform(plan.Platform, deployPhase, platformKey)
 	if err != nil {
 		return fmt.Errorf("platform init: %w", err)
 	}
@@ -75,18 +75,18 @@ func (v *PlanObjectCreate) cancel(t *protocol.Transaction) error {
 		core.AppLog.Warn().Msgf("cancel git auth key: %s", err)
 		return v.insert(t.Meta)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, plan.Name, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel deploy config: %s", err)
 		return v.insert(t.Meta)
 	}
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
-	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Platform))
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel platform key: %s", err)
 		return v.insert(t.Meta)
 	}
-	platform, err := newPlatform(plan.Vendor, deployPhase, platformKey)
+	platform, err := newPlatform(plan.Platform, deployPhase, platformKey)
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel platform init: %s", err)
 		return v.insert(t.Meta)

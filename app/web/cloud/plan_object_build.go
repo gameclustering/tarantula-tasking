@@ -36,16 +36,16 @@ func (v *PlanObjectBuild) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, plan.Name, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
 	buildPhase := cfg.Resolve(plan.Env, "build")
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Platform))
 	if err != nil {
-		return fmt.Errorf("%s auth key: %w", plan.Vendor, err)
+		return fmt.Errorf("%s auth key: %w", plan.Platform, err)
 	}
 	dockerKey, err := v.Cluster().AuthKey("docker")
 	if err != nil {
@@ -61,7 +61,7 @@ func (v *PlanObjectBuild) reserve(t *protocol.Transaction) error {
 
 	if buildPhase.BuildHost != "" {
 		buildIP = buildPhase.BuildHost
-		platform, err := newPlatform(plan.Vendor, buildPhase, platformKey)
+		platform, err := newPlatform(plan.Platform, buildPhase, platformKey)
 		if err != nil {
 			return fmt.Errorf("platform init: %w", err)
 		}
@@ -72,7 +72,7 @@ func (v *PlanObjectBuild) reserve(t *protocol.Transaction) error {
 			sshUser = platform.SSHUser()
 		}
 	} else {
-		platform, err := newPlatform(plan.Vendor, buildPhase, platformKey)
+		platform, err := newPlatform(plan.Platform, buildPhase, platformKey)
 		if err != nil {
 			return fmt.Errorf("platform init: %w", err)
 		}

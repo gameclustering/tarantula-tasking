@@ -23,7 +23,7 @@ const (
 
 type VMObject struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	Vendor            string                 `protobuf:"bytes,1,opt,name=vendor,proto3" json:"vendor,omitempty"` // cloud vendor key for AuthKey lookup
+	Platform          string                 `protobuf:"bytes,1,opt,name=platform,proto3" json:"platform,omitempty"` // cloud platform key for AuthKey lookup (gcp, vultr, ...)
 	NumberOfInstances uint32                 `protobuf:"fixed32,2,opt,name=numberOfInstances,proto3" json:"numberOfInstances,omitempty"`
 	Repository        string                 `protobuf:"bytes,3,opt,name=repository,proto3" json:"repository,omitempty"` // git repo to clone and build
 	Tag               string                 `protobuf:"bytes,4,opt,name=tag,proto3" json:"tag,omitempty"`               // git tag / docker image tag
@@ -62,9 +62,9 @@ func (*VMObject) Descriptor() ([]byte, []int) {
 	return file_vm_object_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *VMObject) GetVendor() string {
+func (x *VMObject) GetPlatform() string {
 	if x != nil {
-		return x.Vendor
+		return x.Platform
 	}
 	return ""
 }
@@ -101,9 +101,9 @@ var File_vm_object_proto protoreflect.FileDescriptor
 
 const file_vm_object_proto_rawDesc = "" +
 	"\n" +
-	"\x0fvm_object.proto\x12\bprotocol\"\x9a\x01\n" +
-	"\bVMObject\x12\x16\n" +
-	"\x06vendor\x18\x01 \x01(\tR\x06vendor\x12,\n" +
+	"\x0fvm_object.proto\x12\bprotocol\"\x9e\x01\n" +
+	"\bVMObject\x12\x1a\n" +
+	"\bplatform\x18\x01 \x01(\tR\bplatform\x12,\n" +
 	"\x11numberOfInstances\x18\x02 \x01(\aR\x11numberOfInstances\x12\x1e\n" +
 	"\n" +
 	"repository\x18\x03 \x01(\tR\n" +

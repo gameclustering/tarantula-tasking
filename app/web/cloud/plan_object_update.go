@@ -36,17 +36,17 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, plan.Name, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Vendor))
+	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Platform))
 	if err != nil {
-		return fmt.Errorf("%s auth key: %w", plan.Vendor, err)
+		return fmt.Errorf("%s auth key: %w", plan.Platform, err)
 	}
-	platform, err := newPlatform(plan.Vendor, deployPhase, platformKey)
+	platform, err := newPlatform(plan.Platform, deployPhase, platformKey)
 	if err != nil {
 		return fmt.Errorf("platform init: %w", err)
 	}
