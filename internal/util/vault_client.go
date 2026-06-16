@@ -42,6 +42,13 @@ func (v *VaultClient) PutSecret(mountPath, path, key, value string) error {
 	return err
 }
 
+// PutSecretMap writes all fields in a single KVv2 Put, replacing any prior version.
+// Use this for service credentials where multiple fields must be stored atomically.
+func (v *VaultClient) PutSecretMap(mountPath, path string, data map[string]any) error {
+	_, err := v.client.KVv2(mountPath).Put(context.Background(), path, data)
+	return err
+}
+
 func (v *VaultClient) Load(mountPath string, path string) (*protocol.AuthKey, error) {
 	ak := protocol.AuthKey{}
 	kv, err := v.GetSecret(mountPath, path)
@@ -51,8 +58,10 @@ func (v *VaultClient) Load(mountPath string, path string) (*protocol.AuthKey, er
 	switch path {
 	case "auth":
 		return v.toAuthKey(kv), nil
-	case "sql":
+	case "sql", "postgresql":
 		return v.toSqlKey(kv), nil
+	case "redis":
+		return v.toRedisKey(kv), nil
 	case "gcp":
 		return v.toGcpKey(kv), nil
 	case "aws":
@@ -87,11 +96,26 @@ func (a *VaultClient) toSqlKey(kv *vault.KVSecret) *protocol.AuthKey {
 	pwd, _ := kv.Data["password"].(string)
 	host, _ := kv.Data["host"].(string)
 	cert, _ := kv.Data["cert"].(string)
+	port, _ := kv.Data["port"].(string)
+	db, _ := kv.Data["db"].(string)
 	ak := protocol.AuthKey{Sql: &protocol.SqlAccess{}}
 	ak.Sql.User = user
 	ak.Sql.Password = pwd
 	ak.Sql.Host = host
 	ak.Sql.Cert = cert
+	ak.Sql.Port = port
+	ak.Sql.Db = db
+	return &ak
+}
+
+func (a *VaultClient) toRedisKey(kv *vault.KVSecret) *protocol.AuthKey {
+	host, _ := kv.Data["host"].(string)
+	port, _ := kv.Data["port"].(string)
+	password, _ := kv.Data["password"].(string)
+	ak := protocol.AuthKey{Redis: &protocol.RedisAccess{}}
+	ak.Redis.Host = host
+	ak.Redis.Port = port
+	ak.Redis.Password = password
 	return &ak
 }
 

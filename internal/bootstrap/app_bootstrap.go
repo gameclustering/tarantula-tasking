@@ -82,11 +82,6 @@ func illegalAccess(w http.ResponseWriter, r *http.Request) {
 	session := core.OnSession{Successful: false, Message: ILLEGAL_ACCESS_MSG, ErrorCode: ILLEGAL_ACCESS_CODE}
 	w.Write(util.ToJson(session))
 }
-//func preflight(w http.ResponseWriter, r *http.Request) {
-	//defer r.Body.Close()
-	//w.WriteHeader(http.StatusNoContent)
-//}
-
 func metricsHandler(auth core.Authenticator, h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tkn := r.Header.Get("Authorization")
@@ -129,13 +124,6 @@ func Logging(s TarantulaApp) http.HandlerFunc {
 			t.Event.Key.Array = core.ToBytes(s.Sequence())
 			s.Cluster().Publish(t)
 		}()
-		//w.Header().Set("Access-Control-Allow-Origin", "*")
-		//w.Header().Set("Access-Control-Allow-Headers", "*")
-		//w.Header().Set("Access-Control-Allow-Methods", "*")
-		//if r.Method == "OPTIONS" {
-			//preflight(w, r)
-			//return
-		//}
 		if s.AccessControl() == core.PUBLIC_ACCESS_CONTROL {
 			s.Request(core.OnSession{}, w, r)
 			return
