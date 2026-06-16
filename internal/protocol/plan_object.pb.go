@@ -28,6 +28,7 @@ type PlanObject struct {
 	AppRepo       *RepoObject            `protobuf:"bytes,3,opt,name=appRepo,proto3" json:"appRepo,omitempty"`
 	DeployRepo    *RepoObject            `protobuf:"bytes,4,opt,name=deployRepo,proto3" json:"deployRepo,omitempty"`
 	TestRepo      *RepoObject            `protobuf:"bytes,5,opt,name=testRepo,proto3" json:"testRepo,omitempty"`
+	Name          string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"` // service subdirectory under vendor in deploy repo
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -97,11 +98,18 @@ func (x *PlanObject) GetTestRepo() *RepoObject {
 	return nil
 }
 
+func (x *PlanObject) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_plan_object_proto protoreflect.FileDescriptor
 
 const file_plan_object_proto_rawDesc = "" +
 	"\n" +
-	"\x11plan_object.proto\x12\bprotocol\x1a\x11repo_object.proto\"\xce\x01\n" +
+	"\x11plan_object.proto\x12\bprotocol\x1a\x11repo_object.proto\"\xe2\x01\n" +
 	"\n" +
 	"PlanObject\x12\x16\n" +
 	"\x06vendor\x18\x01 \x01(\tR\x06vendor\x12\x10\n" +
@@ -110,7 +118,8 @@ const file_plan_object_proto_rawDesc = "" +
 	"\n" +
 	"deployRepo\x18\x04 \x01(\v2\x14.protocol.RepoObjectR\n" +
 	"deployRepo\x120\n" +
-	"\btestRepo\x18\x05 \x01(\v2\x14.protocol.RepoObjectR\btestRepoBR\n" +
+	"\btestRepo\x18\x05 \x01(\v2\x14.protocol.RepoObjectR\btestRepo\x12\x12\n" +
+	"\x04name\x18\x06 \x01(\tR\x04nameBR\n" +
 	"\x17com.icodesoftware.protoB\x11PlanObjectFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (

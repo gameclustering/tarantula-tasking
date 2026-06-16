@@ -32,7 +32,7 @@ func (v *PlanObjectCreate) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
@@ -75,7 +75,7 @@ func (v *PlanObjectCreate) cancel(t *protocol.Transaction) error {
 		core.AppLog.Warn().Msgf("cancel git auth key: %s", err)
 		return v.insert(t.Meta)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, plan.Name, gitKey)
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel deploy config: %s", err)
 		return v.insert(t.Meta)

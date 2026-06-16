@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"gameclustering.com/internal/core"
@@ -11,9 +12,9 @@ import (
 
 // loadDeployConfig clones (or updates) the deploy repo, checks out the
 // specified ref, and returns the platform-agnostic deploy config for the
-// given vendor. The deploy repo is expected to have a file at
-// <vendor>/deploy.json (e.g. gcp/deploy.json, vultr/deploy.json).
-func loadDeployConfig(deployRepo *protocol.RepoObject, vendor string, gitKey *protocol.AuthKey) (*core.DeployConfig, error) {
+// given vendor. It looks for <vendor>/<name>/deploy.json when name is
+// non-empty, falling back to <vendor>/deploy.json.
+func loadDeployConfig(deployRepo *protocol.RepoObject, vendor, name string, gitKey *protocol.AuthKey) (*core.DeployConfig, error) {
 	if deployRepo == nil || deployRepo.Name == "" {
 		return nil, fmt.Errorf("deploy repo is required")
 	}
@@ -26,10 +27,16 @@ func loadDeployConfig(deployRepo *protocol.RepoObject, vendor string, gitKey *pr
 	if err := gc.CheckoutRef(deployRepo.Tag, deployRepo.Branch); err != nil {
 		return nil, fmt.Errorf("checkout ref: %w", err)
 	}
-	cfg, err := core.LoadDeployConfig(filepath.Join(repoPath, vendor, "deploy.json"))
+	configPath := filepath.Join(repoPath, vendor, "deploy.json")
+	if name != "" {
+		sub := filepath.Join(repoPath, vendor, name, "deploy.json")
+		if _, err := os.Stat(sub); err == nil {
+			configPath = sub
+		}
+	}
+	cfg, err := core.LoadDeployConfig(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("load %s deploy config: %w", vendor, err)
+		return nil, fmt.Errorf("load %s/%s deploy config: %w", vendor, name, err)
 	}
 	return cfg, nil
 }
-

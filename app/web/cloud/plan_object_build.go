@@ -36,7 +36,7 @@ func (v *PlanObjectBuild) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, gitKey)
+	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Vendor, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
