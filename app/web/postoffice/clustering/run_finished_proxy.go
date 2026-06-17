@@ -1,8 +1,9 @@
 package clustering
 
 import (
-	context "context"
+	"context"
 	"fmt"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
@@ -18,10 +19,17 @@ func (c *DataServiceProvider) runFinished(t *protocol.Meta) (*protocol.Response,
 	c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: t.Prefix, Replicas: REPLICA_MAX, Async: rq}
 	nodes := <-rq
 	ringNode := nodes[0]
+	if ringNode.RpcEndpoint == c.rpcEndpoint {
+		t.State = protocol.TCC_FINISHED
+		c.TManager.Update(t)
+		return &protocol.Response{Successful: true}, nil
+	}
 	conn, err := ringNode.CPool.Conn()
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: err.Error()}, err
 	}
 	dsp := protocol.NewTransactionServiceClient(conn.Conn)
-	return dsp.Finished(context.Background(), t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return dsp.Finished(ctx, t)
 }

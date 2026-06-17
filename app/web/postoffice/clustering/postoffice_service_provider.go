@@ -185,9 +185,12 @@ func (c *DataServiceProvider) Cancel(ctx context.Context, meta *protocol.Meta) (
 }
 
 func (c *DataServiceProvider) Finish(ctx context.Context, meta *protocol.Meta) (*protocol.Response, error) {
-	//call Canceled
-	c.runFinished(meta)
-	return &protocol.Response{Successful: true}, nil
+	resp, err := c.runFinished(meta)
+	if err != nil {
+		core.AppLog.Error().Msgf("runFinished failed txn=%d: %s", meta.Id, err.Error())
+		return resp, err
+	}
+	return resp, nil
 }
 
 func (c *DataServiceProvider) TopicList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
