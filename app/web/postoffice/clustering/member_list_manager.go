@@ -104,6 +104,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 		panic(err)
 	}
 	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, m.DataServiceProvider.rpcEndpoint)
+	go m.DataServiceProvider.recoverTasks()
 	return nil
 }
 
