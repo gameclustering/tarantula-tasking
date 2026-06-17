@@ -58,7 +58,8 @@ func (c *DataServiceProvider) load(taskId uint64) (*TaskResource, error) {
 	buff.WriteUInt64(taskId)
 	buff.Flip()
 	k, _ := buff.Read(0)
-	req := protocol.Request{Prefix: c.Mll.RingToken(k), Data: &protocol.Data{Key: k, Header: &protocol.Header{FactoryId: core.TASK_FACTORY_ID, ClassId: persistence.TASK_CLASS_ID}}}
+	prefix := c.Mll.RingToken(k)
+	req := protocol.Request{Prefix: prefix, Data: &protocol.Data{Key: k, Header: &protocol.Header{FactoryId: core.TASK_FACTORY_ID, ClassId: persistence.TASK_CLASS_ID}}}
 	resp, err := c.runGet(&req)
 	if err != nil {
 		return nil, err
@@ -67,6 +68,11 @@ func (c *DataServiceProvider) load(taskId uint64) (*TaskResource, error) {
 	t, err := tb.From(resp.Data.List[0].Value)
 	if err != nil {
 		return nil, err
+	}
+	// Slave replicas receive initial bytes before Hash() sets the prefix.
+	// Re-derive it from the task ID key if missing.
+	if t.Meta.Prefix == 0 {
+		t.Meta.Prefix = prefix
 	}
 	return NewTaskResource(t, resp.Data.List[0].Header.Revision), nil
 }

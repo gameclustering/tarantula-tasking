@@ -287,6 +287,7 @@ func (m *TaskManager) reload(meta *protocol.Meta) (*TaskResource, error) {
 
 	job := tr.pending[tr.jobIndex]
 	job.Meta.State = protocol.TCC_JOB_TIMEOUT
+	job.Meta.Prefix = tr.resource.Meta.Prefix
 	go m.s.updateTask(tr, func() {
 		core.AppLog.Debug().Msgf("task updated from reload %d", tr.revision)
 	})

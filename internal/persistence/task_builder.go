@@ -77,3 +77,32 @@ func (b *TaskBuilder) Hash(h core.MessageHash) uint32 {
 	b.Target.Meta.Prefix = hash
 	return hash
 }
+
+// HashRequest computes the ring prefix, propagates it to all sub-objects, and
+// re-serializes the task so replicated bytes include the correct prefix.
+func (b *TaskBuilder) HashRequest(h core.MessageHash) (*protocol.Request, error) {
+	req, err := b.Request()
+	if err != nil {
+		return req, err
+	}
+	prefix := b.Hash(h)
+	if b.Target.Validator != nil {
+		b.Target.Validator.Meta.Prefix = prefix
+		for _, t := range b.Target.Validator.Transactions {
+			t.Meta.Prefix = prefix
+		}
+	}
+	for _, job := range b.Target.Jobs {
+		job.Meta.Prefix = prefix
+		for _, t := range job.Transactions {
+			t.Meta.Prefix = prefix
+		}
+	}
+	value, err := proto.Marshal(b.Target)
+	if err != nil {
+		return req, err
+	}
+	req.Data.Value = value
+	req.Prefix = prefix
+	return req, nil
+}
