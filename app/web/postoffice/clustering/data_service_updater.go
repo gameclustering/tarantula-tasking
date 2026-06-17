@@ -219,7 +219,11 @@ func (m *DataServiceProvider) RingUpdated() {
 				for _, ch := range m.listeners {
 					_, subed := ch.Subs[msg.Topic.Name]
 					if subed {
-						ch.Rev <- msg
+						select {
+						case ch.Rev <- msg:
+						default:
+							core.AppLog.Warn().Msgf("TOPIC_MAIL dropped (Rev full) topic=%s", msg.Topic.Name)
+						}
 					}
 				}
 			case core.TRANS_MAIL:
@@ -241,10 +245,14 @@ func (m *DataServiceProvider) RingUpdated() {
 					}
 					_, subed := nc.Subs[tn]
 					if subed {
-						core.AppLog.Info().Msgf("TRANS_MAIL delivered txn=%d name=%s to=%s", msg.Transaction.Meta.Id, msg.Transaction.Meta.Name, nk)
-						nc.Rev <- msg
+						select {
+						case nc.Rev <- msg:
+							core.AppLog.Info().Msgf("TRANS_MAIL delivered txn=%d name=%s to=%s", msg.Transaction.Meta.Id, msg.Transaction.Meta.Name, nk)
+							delivered = true
+						default:
+							core.AppLog.Warn().Msgf("TRANS_MAIL dropped (Rev full) txn=%d name=%s to=%s", msg.Transaction.Meta.Id, msg.Transaction.Meta.Name, nk)
+						}
 						m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
-						delivered = true
 						break
 					}
 					//mark last one to break loop if fullly iterated
