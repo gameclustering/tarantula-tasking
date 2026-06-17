@@ -23,11 +23,12 @@ const (
 
 type PlanObject struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Vendor        string                 `protobuf:"bytes,1,opt,name=vendor,proto3" json:"vendor,omitempty"` // gcp, aws, az
-	Env           string                 `protobuf:"bytes,2,opt,name=env,proto3" json:"env,omitempty"`       // dev, stg, test, prod
+	Platform      string                 `protobuf:"bytes,1,opt,name=platform,proto3" json:"platform,omitempty"` // gcp, aws, az, vultr
+	Env           string                 `protobuf:"bytes,2,opt,name=env,proto3" json:"env,omitempty"`           // dev, stg, test, prod
 	AppRepo       *RepoObject            `protobuf:"bytes,3,opt,name=appRepo,proto3" json:"appRepo,omitempty"`
 	DeployRepo    *RepoObject            `protobuf:"bytes,4,opt,name=deployRepo,proto3" json:"deployRepo,omitempty"`
 	TestRepo      *RepoObject            `protobuf:"bytes,5,opt,name=testRepo,proto3" json:"testRepo,omitempty"`
+	Name          string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"` // service subdirectory under platform in deploy repo
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -62,9 +63,9 @@ func (*PlanObject) Descriptor() ([]byte, []int) {
 	return file_plan_object_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *PlanObject) GetVendor() string {
+func (x *PlanObject) GetPlatform() string {
 	if x != nil {
-		return x.Vendor
+		return x.Platform
 	}
 	return ""
 }
@@ -97,20 +98,28 @@ func (x *PlanObject) GetTestRepo() *RepoObject {
 	return nil
 }
 
+func (x *PlanObject) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_plan_object_proto protoreflect.FileDescriptor
 
 const file_plan_object_proto_rawDesc = "" +
 	"\n" +
-	"\x11plan_object.proto\x12\bprotocol\x1a\x11repo_object.proto\"\xce\x01\n" +
+	"\x11plan_object.proto\x12\bprotocol\x1a\x11repo_object.proto\"\xe6\x01\n" +
 	"\n" +
-	"PlanObject\x12\x16\n" +
-	"\x06vendor\x18\x01 \x01(\tR\x06vendor\x12\x10\n" +
+	"PlanObject\x12\x1a\n" +
+	"\bplatform\x18\x01 \x01(\tR\bplatform\x12\x10\n" +
 	"\x03env\x18\x02 \x01(\tR\x03env\x12.\n" +
 	"\aappRepo\x18\x03 \x01(\v2\x14.protocol.RepoObjectR\aappRepo\x124\n" +
 	"\n" +
 	"deployRepo\x18\x04 \x01(\v2\x14.protocol.RepoObjectR\n" +
 	"deployRepo\x120\n" +
-	"\btestRepo\x18\x05 \x01(\v2\x14.protocol.RepoObjectR\btestRepoBR\n" +
+	"\btestRepo\x18\x05 \x01(\v2\x14.protocol.RepoObjectR\btestRepo\x12\x12\n" +
+	"\x04name\x18\x06 \x01(\tR\x04nameBR\n" +
 	"\x17com.icodesoftware.protoB\x11PlanObjectFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (

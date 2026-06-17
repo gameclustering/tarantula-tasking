@@ -27,6 +27,8 @@ type SqlAccess struct {
 	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	Host          string                 `protobuf:"bytes,3,opt,name=host,proto3" json:"host,omitempty"`
 	Cert          string                 `protobuf:"bytes,4,opt,name=cert,proto3" json:"cert,omitempty"`
+	Port          string                 `protobuf:"bytes,5,opt,name=port,proto3" json:"port,omitempty"`
+	Db            string                 `protobuf:"bytes,6,opt,name=db,proto3" json:"db,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -89,16 +91,32 @@ func (x *SqlAccess) GetCert() string {
 	return ""
 }
 
+func (x *SqlAccess) GetPort() string {
+	if x != nil {
+		return x.Port
+	}
+	return ""
+}
+
+func (x *SqlAccess) GetDb() string {
+	if x != nil {
+		return x.Db
+	}
+	return ""
+}
+
 var File_sql_access_proto protoreflect.FileDescriptor
 
 const file_sql_access_proto_rawDesc = "" +
 	"\n" +
-	"\x10sql_access.proto\x12\bprotocol\"c\n" +
+	"\x10sql_access.proto\x12\bprotocol\"\x87\x01\n" +
 	"\tSqlAccess\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x12\n" +
 	"\x04host\x18\x03 \x01(\tR\x04host\x12\x12\n" +
-	"\x04cert\x18\x04 \x01(\tR\x04certBQ\n" +
+	"\x04cert\x18\x04 \x01(\tR\x04cert\x12\x12\n" +
+	"\x04port\x18\x05 \x01(\tR\x04port\x12\x0e\n" +
+	"\x02db\x18\x06 \x01(\tR\x02dbBQ\n" +
 	"\x17com.icodesoftware.protoB\x10SqlAccessFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (

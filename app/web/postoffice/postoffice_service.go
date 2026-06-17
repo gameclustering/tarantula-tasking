@@ -29,7 +29,10 @@ func (s *PostofficeService) Config() string {
 func (s *PostofficeService) Start(env core.Env) error {
 	env.AuthLevel = core.ADMIN_ACCESS_CONTROL
 	env.IsClusterMember = true
-	s.AppManager.Start(env)
+	err := s.AppManager.Start(env)
+	if err != nil {
+		return err
+	}
 	vault := util.VaultClient{Host: s.F.Vlt.Host, Token: s.F.Vlt.Token}
 	retries := 10
 	for {
@@ -39,7 +42,7 @@ func (s *PostofficeService) Start(env core.Env) error {
 		}
 		retries--
 		if retries == 0 {
-			panic(err)
+			return err
 		}
 		time.Sleep(3 * time.Second)
 		core.AppLog.Warn().Msgf("load credentials from %s retries remaining %d with %s", vault.Host, retries, err.Error())
@@ -50,7 +53,7 @@ func (s *PostofficeService) Start(env core.Env) error {
 	m.Binding = env.NodeName
 	m.AdvertiseAddr = env.PostOfficeAdvertiseIP
 	m.LocalHost = env.PostOfficeHost
-	err := m.Start(fmt.Appendf([]byte{}, "%s:%s", s.Context(), s.NodeId()), s.Authenticator(), s.Sequence(), &vault)
+	err = m.Start(fmt.Appendf([]byte{}, "%s:%s", s.Context(), s.NodeId()), s.Authenticator(), s.Sequence(), &vault)
 	if err != nil {
 		core.AppLog.Warn().Msgf("no cluster can join %s", err.Error())
 		return err
@@ -58,8 +61,10 @@ func (s *PostofficeService) Start(env core.Env) error {
 	s.mm = &m
 	s.started = true
 	http.HandleFunc("/postoffice/seeds", bootstrap.Logging(&ClusterSeedGet{s}))
+	http.HandleFunc("/postoffice/health", bootstrap.Logging(&ClusterHealthCheck{s}))
+	
 	registerServiceProxy("/admin/", os.Getenv("ADMIN_HOST"), "http://admin:8080")
-	registerServiceProxy("/cloud/", os.Getenv("CLOUD_HOST"), "http://cloud:8080")
+	registerServiceProxy("/cloud/meta/task/", os.Getenv("GOOGLE_CLOUD_HOST"), "http://google_cloud:8080")
 	core.AppLog.Info().Msgf("postoffice service started %s %s", env.HttpBinding, env.HomeDir)
 	return nil
 }
@@ -102,7 +107,7 @@ func (c *PostofficeService) loadAuthContext(vault *util.VaultClient) error {
 		return err
 	}
 	c.Auth = au
-	return nil //os.WriteFile(core.CERT_NAME, []byte(auth.Cert), 0600)
+	return nil
 }
 
 // resolveSeeds queries the bootstrap address for current cluster members.

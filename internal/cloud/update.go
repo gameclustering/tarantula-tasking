@@ -1,4 +1,4 @@
-package main
+package cloud
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
@@ -13,44 +14,47 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewPlanObjectUpdate(s *CloudService) *protocol.TccTransationListener {
-	p := PlanObjectUpdate{s}
+func NewUpdate(mgr *bootstrap.AppManager, store *Store, vaultKey string, factory PlatformFactory) *protocol.TccTransationListener {
+	h := &updateHandler{mgr: mgr, store: store, vaultKey: vaultKey, factory: factory}
 	tcc := protocol.TccTransationListener{}
-	tcc.Reserve = p.reserve
-	tcc.Confirm = p.confirm
-	tcc.Cancel = p.cancel
+	tcc.Reserve = h.reserve
+	tcc.Confirm = h.confirm
+	tcc.Cancel = h.cancel
 	return &tcc
 }
 
-type PlanObjectUpdate struct {
-	*CloudService
+type updateHandler struct {
+	mgr      *bootstrap.AppManager
+	store    *Store
+	vaultKey string
+	factory  PlatformFactory
 }
 
-func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
+func (h *updateHandler) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update reserve %v", t.Meta)
 	var plan protocol.PlanObject
 	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
-	gitKey, err := v.Cluster().AuthKey("git")
+	gitKey, err := h.mgr.Cluster().AuthKey("git")
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadGcpDeployConfig(plan.DeployRepo, gitKey)
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
-	phase := cfg.Resolve(plan.Env, "deploy")
+	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	gcpKey, err := v.Cluster().AuthKey("gcp")
+	platformKey, err := h.mgr.Cluster().AuthKey(h.vaultKey)
 	if err != nil {
-		return fmt.Errorf("gcp auth key: %w", err)
+		return fmt.Errorf("%s auth key: %w", h.vaultKey, err)
 	}
-	gcp := util.GcpApi{ServiceAccount: gcpKey.Gcp.Iam, ProjectId: gcpKey.Gcp.ProjectId, Zone: phase.Zone}
-	if err := gcp.Auth(); err != nil {
-		return fmt.Errorf("gcp auth: %w", err)
+	platform, err := h.factory(deployPhase, platformKey)
+	if err != nil {
+		return fmt.Errorf("platform init: %w", err)
 	}
-	defer gcp.Close()
+	defer platform.Close()
 
 	keyFile, err := os.CreateTemp("", "id_ed25519_*")
 	if err != nil {
@@ -63,47 +67,50 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 	}
 	keyFile.Close()
 
-	for i := 1; i <= phase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", phase.Prefix, i)
-		if err := v.setupInstance(gcp, gcpKey.Gcp.Ssh, gcpKey.Gcp.User, name, keyFile.Name()); err != nil {
+	sshUser := deployPhase.SshUser
+	if sshUser == "" {
+		sshUser = platform.SSHUser()
+	}
+
+	for i := 1; i <= deployPhase.InstanceNumber; i++ {
+		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
+		if err := h.setupInstance(platform, name, sshUser, keyFile.Name()); err != nil {
 			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
 		}
 	}
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }
 
-func (v *PlanObjectUpdate) setupInstance(gcp util.GcpApi, sshKey string, user string, name string, keyFile string) error {
-	ins, err := gcp.Get(name)
+func (h *updateHandler) setupInstance(platform InstancePlatform, name, sshUser, keyFile string) error {
+	ip, err := platform.IP(name)
 	if err != nil {
-		return fmt.Errorf("get instance: %w", err)
+		return fmt.Errorf("get IP: %w", err)
 	}
-	natIP := ins.GetNetworkInterfaces()[0].AccessConfigs[0].GetNatIP()
-	ssh := util.SshClient{Host: natIP, User: user, PrivateKey: sshKey, KHFile: "../.ssh/known_hosts"}
+	ssh := util.SshClient{Host: ip, User: sshUser, PrivateKey: platform.SSHKey(), KHFile: "../.ssh/known_hosts"}
 
-	// New instances take 30-90s to boot; retry SSH until ready.
 	const maxWait = 5 * time.Minute
 	deadline := time.Now().Add(maxWait)
 	for {
 		if err := ssh.WithKey(); err == nil {
 			break
 		} else if time.Now().After(deadline) {
-			return fmt.Errorf("ssh connect: timed out waiting for instance to be ready: %w", err)
+			return fmt.Errorf("ssh connect: timed out: %w", err)
 		}
 		core.AppLog.Debug().Msgf("setup [%s]: waiting for SSH...", name)
 		time.Sleep(10 * time.Second)
 	}
 	defer ssh.Close()
 
-	if err := v.installDocker(ssh, user, name); err != nil {
+	if err := h.installDocker(ssh, sshUser, name); err != nil {
 		return fmt.Errorf("install docker: %w", err)
 	}
-	if err := v.uploadGitKey(ssh, user, keyFile, name); err != nil {
+	if err := h.uploadGitKey(ssh, sshUser, keyFile, name); err != nil {
 		return fmt.Errorf("upload git key: %w", err)
 	}
 	return nil
 }
 
-func (v *PlanObjectUpdate) installDocker(ssh util.SshClient, user string, name string) error {
+func (h *updateHandler) installDocker(ssh util.SshClient, user string, name string) error {
 	var out bytes.Buffer
 	cmds := []string{
 		"mkdir -p ~/.ssh && chmod 700 ~/.ssh",
@@ -128,13 +135,12 @@ func (v *PlanObjectUpdate) installDocker(ssh util.SshClient, user string, name s
 	return nil
 }
 
-func (v *PlanObjectUpdate) uploadGitKey(ssh util.SshClient, user string, keyFile string, name string) error {
+func (h *updateHandler) uploadGitKey(ssh util.SshClient, user string, keyFile string, name string) error {
 	f, err := os.Open(keyFile)
 	if err != nil {
 		return fmt.Errorf("open key file: %w", err)
 	}
 	defer f.Close()
-
 	remotePath := fmt.Sprintf("/home/%s/.ssh/id_ed25519", user)
 	if err := ssh.Upload(f, remotePath, "0600"); err != nil {
 		return fmt.Errorf("upload: %w", err)
@@ -143,12 +149,12 @@ func (v *PlanObjectUpdate) uploadGitKey(ssh util.SshClient, user string, keyFile
 	return nil
 }
 
-func (v *PlanObjectUpdate) confirm(t *protocol.Transaction) error {
+func (h *updateHandler) confirm(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update confirm %v", t.Meta)
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }
 
-func (v *PlanObjectUpdate) cancel(t *protocol.Transaction) error {
+func (h *updateHandler) cancel(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update cancel %v", t.Meta)
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }

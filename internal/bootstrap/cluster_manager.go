@@ -431,17 +431,22 @@ func (c *ClusterManager) handleTranstion(l core.TransactionListener, t *protocol
 	switch state {
 	case protocol.TCC_RESERVING:
 		t.Meta.State = protocol.TCC_CONFIRMED
-		//send confirmed to cluster
-		c.Confirm(t.Meta)
-
+		core.AppLog.Info().Msgf("handleTransition confirming txn=%d name=%s", t.Meta.Id, t.Meta.Name)
+		if _, err := c.Confirm(t.Meta); err != nil {
+			core.AppLog.Warn().Msgf("handleTransition Confirm failed txn=%d name=%s err=%s", t.Meta.Id, t.Meta.Name, err.Error())
+		}
 	case protocol.TCC_CONFIRMED:
-		//send commited to cluster
 		t.Meta.State = protocol.TCC_FINISHED
-		c.Finish(t.Meta)
+		core.AppLog.Info().Msgf("handleTransition finishing txn=%d name=%s", t.Meta.Id, t.Meta.Name)
+		if _, err := c.Finish(t.Meta); err != nil {
+			core.AppLog.Warn().Msgf("handleTransition Finish failed txn=%d name=%s err=%s", t.Meta.Id, t.Meta.Name, err.Error())
+		}
 	case protocol.TCC_CANCELED:
-		//send aborted to cluster
 		t.Meta.State = protocol.TCC_FINISHED
-		c.Finish(t.Meta)
+		core.AppLog.Info().Msgf("handleTransition finishing(cancel) txn=%d name=%s", t.Meta.Id, t.Meta.Name)
+		if _, err := c.Finish(t.Meta); err != nil {
+			core.AppLog.Warn().Msgf("handleTransition Finish(cancel) failed txn=%d name=%s err=%s", t.Meta.Id, t.Meta.Name, err.Error())
+		}
 	}
 
 }

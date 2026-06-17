@@ -1,7 +1,7 @@
 {
     "LogTruncated":true,
-	"GroupName" :"cloud",
-	"NodeName" :   "cloud.2",
+	"GroupName" :"google_cloud",
+	"NodeName" :   "google_cloud.2",
 	"NodeId"     :   2,
 	"SqlEnabled":true
 }

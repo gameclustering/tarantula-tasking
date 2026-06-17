@@ -8,6 +8,7 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
@@ -30,6 +31,11 @@ const (
 	TOPIC_LIST uint32 = 6
 	TASK_LIST  uint32 = 7
 
+	// TASK_ASSIGN picks one subscriber via round-robin scoped by tag.
+	// Reserve and confirm phases call this independently so they can land
+	// on different nodes.
+	TASK_ASSIGN uint32 = 8
+
 	TRANS_SUB_PREFIX string = "_t_"
 )
 
@@ -44,6 +50,10 @@ type TopicRequest struct {
 	NodeId string
 	Tag    string
 	Name   string
+	// QChan is the Q channel of the Receive goroutine sending RECEIVER_REMOVE.
+	// The dispatcher only deletes the listener when this matches the current entry,
+	// preventing stale goroutines from evicting a freshly-registered listener.
+	QChan chan string
 
 	Async chan ReceiverAsync
 	Subs  chan []core.Subscription
@@ -100,11 +110,20 @@ func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
 	}
 	if sub.Deleting {
 		m.subscriptions.del(sub)
-		listener, ok := m.listeners[sub.NodeId]
-		if !ok {
-			return
+		// Only local subscriptions have listener entries; remote ones are routing-only.
+		if sub.Endpoint == m.rpcEndpoint {
+			if listener, ok := m.listeners[sub.NodeId]; ok {
+				delete(listener.Subs, sub.Topic)
+			}
 		}
-		delete(listener.Subs, sub.Topic)
+		return
+	}
+	m.subscriptions.add(sub)
+	// Gossiped subscriptions from remote postoffices are for pick() routing only.
+	// Creating phantom Rev channels for them causes TRANS_MAIL to be silently
+	// dropped into unread channels when a remote worker's entry appears first in
+	// the listenerPool before the locally-connected worker.
+	if sub.Endpoint != m.rpcEndpoint {
 		return
 	}
 	listener, ok := m.listeners[sub.NodeId]
@@ -113,14 +132,21 @@ func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
 		m.listeners[sub.NodeId] = listener
 		m.listenerPool = append(m.listenerPool, sub.NodeId)
 	}
-	m.subscriptions.add(sub)
 	listener.Subs[sub.Topic] = sub
 }
 
 func (m *DataServiceProvider) RingUpdated() {
 	running := true
+	subSync := time.NewTicker(60 * time.Second)
+	defer subSync.Stop()
 	for running {
 		select {
+		case <-subSync.C:
+			m.subscriptions.lookup(func(sub core.Subscription) {
+				if sub.Endpoint == m.rpcEndpoint {
+					m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
+				}
+			})
 		case ringUpdate := <-m.RNode:
 			switch ringUpdate.State {
 			case NODE_STATE_SHUTDOWN:
@@ -148,10 +174,12 @@ func (m *DataServiceProvider) RingUpdated() {
 		case req := <-m.DRequest:
 			switch req.Opt {
 			case RECEIVER_START:
-				rev, ok := m.listeners[req.Name]
-				if !ok {
-					rev = ReceiverAsync{Rev: make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE), Q: make(chan string, 2), Subs: make(map[string]core.Subscription)}
-					m.listeners[req.Name] = rev
+				_, existed := m.listeners[req.Name]
+				// Always allocate a fresh channel pair so each Receive goroutine
+				// has exclusive ownership — prevents double-close on reconnect.
+				rev := ReceiverAsync{Rev: make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE), Q: make(chan string, 2), Subs: make(map[string]core.Subscription)}
+				m.listeners[req.Name] = rev
+				if !existed {
 					m.listenerPool = append(m.listenerPool, req.Name)
 				}
 				req.Async <- rev
@@ -162,12 +190,24 @@ func (m *DataServiceProvider) RingUpdated() {
 				}
 
 			case RECEIVER_REMOVE:
-				delete(m.listeners, req.Name)
+				// Only delete if the Q channel matches — stale goroutines must not
+				// evict a freshly-registered listener created during reconnect.
+				if current, ok := m.listeners[req.Name]; ok && current.Q == req.QChan {
+					delete(m.listeners, req.Name)
+				}
 			case TOPIC_REGISTER:
 				req.Subs <- m.subscriptions.topic(req)
 			case TASK_REGISTER:
 				req.Name = fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, req.Name)
 				req.Subs <- m.subscriptions.topic(req)
+			case TASK_ASSIGN:
+				name := fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, req.Name)
+				sub := m.subscriptions.pick(name, req.Tag)
+				if sub != nil {
+					req.Subs <- []core.Subscription{*sub}
+				} else {
+					req.Subs <- []core.Subscription{}
+				}
 			case TOPIC_LIST:
 				req.Subs <- m.subscriptions.list(false)
 			case TASK_LIST:
@@ -179,12 +219,17 @@ func (m *DataServiceProvider) RingUpdated() {
 				for _, ch := range m.listeners {
 					_, subed := ch.Subs[msg.Topic.Name]
 					if subed {
-						ch.Rev <- msg
+						select {
+						case ch.Rev <- msg:
+						default:
+							core.AppLog.Warn().Msgf("TOPIC_MAIL dropped (Rev full) topic=%s", msg.Topic.Name)
+						}
 					}
 				}
 			case core.TRANS_MAIL:
 				tn := fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, msg.Transaction.Meta.Name)
 				lk := ""
+				delivered := false
 				for {
 					if len(m.listenerPool) == 0 {
 						break
@@ -200,13 +245,22 @@ func (m *DataServiceProvider) RingUpdated() {
 					}
 					_, subed := nc.Subs[tn]
 					if subed {
-						nc.Rev <- msg
+						select {
+						case nc.Rev <- msg:
+							core.AppLog.Info().Msgf("TRANS_MAIL delivered txn=%d name=%s to=%s", msg.Transaction.Meta.Id, msg.Transaction.Meta.Name, nk)
+							delivered = true
+						default:
+							core.AppLog.Warn().Msgf("TRANS_MAIL dropped (Rev full) txn=%d name=%s to=%s", msg.Transaction.Meta.Id, msg.Transaction.Meta.Name, nk)
+						}
 						m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
 						break
 					}
 					//mark last one to break loop if fullly iterated
 					lk = nk
 					m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
+				}
+				if !delivered {
+					core.AppLog.Warn().Msgf("TRANS_MAIL dropped txn=%d name=%s pool=%d", msg.Transaction.Meta.Id, msg.Transaction.Meta.Name, len(m.listenerPool))
 				}
 			}
 		}

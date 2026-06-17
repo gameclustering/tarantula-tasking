@@ -31,7 +31,7 @@ type MemberlistManager struct {
 func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core.Sequence, vt *util.VaultClient) error {
 	m.MemberHashRing = &MemberHashRing{weight: NODE_WEIGHT, hLock: &sync.Mutex{}, auth: auth}
 	m.nodes = make([]core.Node, 0)
-	cfg := memberlist.DefaultLANConfig()
+	cfg := memberlist.DefaultWANConfig()
 	cfg.Name = m.Binding
 	if m.AdvertiseAddr != "" {
 		cfg.AdvertiseAddr = m.AdvertiseAddr
@@ -68,10 +68,11 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	if m.AdvertiseAddr != "" {
 		advertiseIP = m.AdvertiseAddr
 	}
-	// cert SANs: always include advertiseIP; also include the Docker bridge IP so
-	// admin/cloud containers on the same host can connect via POST_OFFICE_HOST
-	sans := []string{advertiseIP}
-	if m.LocalHost != "" && m.LocalHost != advertiseIP {
+	// cert SANs: advertiseIP for inter-node RPC; 127.0.0.1 so co-located admin/cloud
+	// containers connecting via POST_OFFICE_HOST=127.0.0.1 pass TLS verification;
+	// LocalHost for Docker bridge scenarios.
+	sans := []string{advertiseIP, "127.0.0.1"}
+	if m.LocalHost != "" && m.LocalHost != advertiseIP && m.LocalHost != "127.0.0.1" {
 		sans = append(sans, m.LocalHost)
 	}
 	ak, err := vt.Load(m.Ctx, "auth")

@@ -17,38 +17,48 @@ services:
       - volume_postoffice:/home/tarantula/postoffice
     env_file:
       - .env
-  cloud:
+  google_cloud:
     stop_grace_period: 20s
     restart: unless-stopped
-    container_name: cloud
-   
-    hostname: cloud
-    image: ${PREFIX}/tarantula.cloud:${VERSION}
+    container_name: google_cloud
+    hostname: google_cloud
+    image: ${PREFIX}/tarantula.google_cloud:${VERSION}
     volumes:
-      - volume_cloud:/home/tarantula/cloud
+      - volume_google_cloud:/home/tarantula/google_cloud
     depends_on:
       - postoffice
-         
     networks:
       - tarantula-app-net
     env_file:
-      - .env 
+      - .env
+  vultr_cloud:
+    stop_grace_period: 20s
+    restart: unless-stopped
+    container_name: vultr_cloud
+    hostname: vultr_cloud
+    image: ${PREFIX}/tarantula.vultr_cloud:${VERSION}
+    volumes:
+      - volume_vultr_cloud:/home/tarantula/vultr_cloud
+    depends_on:
+      - postoffice
+    networks:
+      - tarantula-app-net
+    env_file:
+      - .env
   admin:
     stop_grace_period: 20s
     restart: unless-stopped
     container_name: admin
-   
     hostname: admin
     image: ${PREFIX}/tarantula.admin:${VERSION}
     volumes:
-      - volume_admin:/home/tarantula/admin  
+      - volume_admin:/home/tarantula/admin
     depends_on:
-      - cloud
-
+      - google_cloud
     networks:
       - tarantula-app-net
     env_file:
-      - .env  
+      - .env
   web:
     restart: unless-stopped
     container_name: web
@@ -71,6 +81,7 @@ networks:
     external: true
 volumes:
   volume_postoffice:
-  volume_cloud:
+  volume_google_cloud:
+  volume_vultr_cloud:
   volume_admin:
   volume_caddy:

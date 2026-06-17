@@ -53,6 +53,9 @@ func (c *DataServiceProvider) runCreate(set *protocol.Request) (*protocol.Respon
 }
 
 func (m *DataServiceProvider) clientCreate(target *core.Node, request *protocol.Request) (*protocol.Response, error) {
+	if target.RpcEndpoint == m.rpcEndpoint {
+		return m.Create(context.Background(), request)
+	}
 	conn, err := target.CPool.Conn()
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: "no tcp connect"}, err

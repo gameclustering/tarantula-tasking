@@ -1,0 +1,7 @@
+{
+    "LogTruncated":true,
+	"GroupName" :"vultr_cloud",
+	"NodeName" :   "vultr_cloud.4",
+	"NodeId"     :   4,
+	"SqlEnabled":true
+}

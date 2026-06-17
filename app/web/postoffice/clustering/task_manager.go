@@ -1,3 +1,4 @@
+
 package clustering
 
 import (
@@ -9,6 +10,12 @@ import (
 	"gameclustering.com/internal/protocol"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// reserveFirstRetryTimeout is the delay before the first reserve retry.
+// Must be long enough for slow stages (docker build on a cold VM takes ~3 min).
+// Kept under tc.Meta.Timeout so recovery still happens if the executor hangs.
+// Subsequent retries use tc.Meta.Timeout.
+const reserveFirstRetryTimeout = 300 * time.Second
 
 type TaskResource struct {
 	resource *protocol.Task
@@ -85,6 +92,7 @@ func (m *TaskManager) schedule(t *TaskResource, job *protocol.Job) {
 }
 
 func (m *TaskManager) start(j *JobResource) {
+	core.AppLog.Info().Msgf("start job=%d task=%d txns=%d", j.resource.Meta.Id, j.resource.Meta.TaskId, len(j.resource.Transactions))
 	m.tms[j.resource.Meta.Id] = &Timeout{t: time.AfterFunc(time.Duration(j.resource.Meta.Timeout)*time.Second, func() {
 		m.updates <- &protocol.Meta{TaskId: j.resource.Meta.TaskId, JobId: j.resource.Meta.Id, State: protocol.TCC_JOB_TIMEOUT}
 	})}
@@ -95,7 +103,9 @@ func (m *TaskManager) start(j *JobResource) {
 		tc.Meta.State = protocol.TCC_RESERVING
 		tc.Meta.Time = timestamppb.Now()
 		tc.Meta.Prefix = j.resource.Meta.Prefix
-		m.tms[tc.Meta.Id] = &Timeout{t: time.AfterFunc(time.Duration(tc.Meta.Timeout)*time.Second, func() {
+		// First retry fires at reserveFirstRetryTimeout (60s) so a dropped
+		// TRANS_MAIL is recovered quickly; subsequent retries use tc.Meta.Timeout.
+		m.tms[tc.Meta.Id] = &Timeout{t: time.AfterFunc(reserveFirstRetryTimeout, func() {
 			m.updates <- &protocol.Meta{TaskId: j.resource.Meta.TaskId, JobId: j.resource.Meta.Id, Id: tc.Meta.Id, State: protocol.TCC_TRANSACTION_TIMEOUT}
 		}), p: func() {
 			core.AppLog.Debug().Msgf("retry to reserve with timeout on %d", tc.Meta.Id)
@@ -111,13 +121,16 @@ func (m *TaskManager) start(j *JobResource) {
 
 func (m *TaskManager) stop(t *JobResource) {
 	t.canceled = true
-	
 	t.jb.Description("job timeout").End(time.Now())
 	tr := m.trs[t.resource.Meta.TaskId]
 	tr.canceled = true
 	tr.resource.Meta.State = protocol.TCC_FINISHED
-	tr.resource.Validator.Meta.State = protocol.TCC_FINISHED
-	//tr.resource.Job.Meta.State = protocol.TCC_FINISHED
+	if tr.resource.Validator != nil {
+		tr.resource.Validator.Meta.State = protocol.TCC_FINISHED
+	}
+	for _, tc := range t.resource.Transactions {
+		m.closeTimer(tc.Meta.Id)
+	}
 	m.end(tr)
 }
 
@@ -293,6 +306,7 @@ func (m *TaskManager) Wait() {
 	for m.s.running {
 		select {
 		case task := <-m.tasks:
+			core.AppLog.Info().Msgf("Wait received task=%d prefix=%d", task.Meta.Id, task.Meta.Prefix)
 			tr := NewTaskResource(task, 1)
 			m.trs[task.Meta.Id] = tr
 			m.set(tr)
@@ -323,25 +337,28 @@ func (m *TaskManager) Wait() {
 			tj := m.tjs[meta.JobId]
 			switch meta.State {
 			case protocol.TCC_CONFIRMED:
+				core.AppLog.Info().Msgf("TCC_CONFIRMED txn=%d job=%d task=%d", meta.Id, meta.JobId, meta.TaskId)
 				m.closeTimer(meta.Id)
 				if tj.join(meta) {
 					m.confirmed(tj)
 				}
 			case protocol.TCC_CANCELED:
+				core.AppLog.Info().Msgf("TCC_CANCELED txn=%d job=%d task=%d", meta.Id, meta.JobId, meta.TaskId)
 				m.closeTimer(meta.Id)
 				m.canceled(meta, tj)
 
 			case protocol.TCC_FINISHED:
+				core.AppLog.Info().Msgf("TCC_FINISHED txn=%d job=%d task=%d", meta.Id, meta.JobId, meta.TaskId)
 				m.closeTimer(meta.Id)
 				if tj.join(meta) {
 					m.finished(tj)
 				}
 
 			case protocol.TCC_TRANSACTION_TIMEOUT:
-				core.AppLog.Debug().Msgf("task transaction timeout %d", tr.jobIndex)
+				core.AppLog.Info().Msgf("TCC_TRANSACTION_TIMEOUT txn=%d job=%d task=%d", meta.Id, meta.JobId, meta.TaskId)
 				m.timeout(meta.Id, meta)
 			case protocol.TCC_JOB_TIMEOUT:
-				core.AppLog.Debug().Msgf("task job timeout %d", tr.jobIndex)
+				core.AppLog.Info().Msgf("TCC_JOB_TIMEOUT job=%d task=%d", meta.JobId, meta.TaskId)
 				m.timeout(meta.JobId, meta)
 				m.stop(tj)
 			}

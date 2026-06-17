@@ -8,6 +8,7 @@ import (
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/persistence"
 	"gameclustering.com/internal/protocol"
+	"gameclustering.com/internal/util"
 	"google.golang.org/grpc"
 )
 
@@ -68,7 +69,7 @@ func (c *DataServiceProvider) Receive(topic *protocol.Topic, stream grpc.ServerS
 			}
 		}
 	}
-	c.DRequest <- TopicRequest{Opt: RECEIVER_REMOVE, Name: topic.NodeId}
+	c.DRequest <- TopicRequest{Opt: RECEIVER_REMOVE, Name: topic.NodeId, QChan: ch.Q}
 	core.AppLog.Debug().Msgf("stop evnt receiver from on [%s]", topic.NodeId)
 	c.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: core.Subscription{NodeId: topic.NodeId, Deleting: true}}}
 	return nil
@@ -83,11 +84,17 @@ func (c *DataServiceProvider) Publish(ctx context.Context, in *protocol.Topic) (
 }
 
 func (c *DataServiceProvider) Subscribe(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
-	c.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: core.Subscription{Type: in.Opt, NodeId: in.NodeId, Tag: in.Tag, Topic: in.Name, Endpoint: c.rpcEndpoint}}}
+	sub := core.Subscription{Type: in.Opt, NodeId: in.NodeId, Tag: in.Tag, Topic: in.Name, Endpoint: c.rpcEndpoint}
+	// Register locally immediately via MSync — avoids relying on the memberlist self-loopback.
+	c.Mll.MSync <- util.ToJson(core.RingSync{Sub: sub})
+	// Broadcast to all cluster members.
+	c.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
 	return &protocol.Response{Successful: true, Message: "topic created"}, nil
 }
 func (c *DataServiceProvider) Unsubscribe(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
-	c.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: core.Subscription{Type: in.Opt, NodeId: in.NodeId, Tag: in.Tag, Topic: in.Name, Endpoint: c.rpcEndpoint, Deleting: true}}}
+	sub := core.Subscription{Type: in.Opt, NodeId: in.NodeId, Tag: in.Tag, Topic: in.Name, Endpoint: c.rpcEndpoint, Deleting: true}
+	c.Mll.MSync <- util.ToJson(core.RingSync{Sub: sub})
+	c.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
 	return &protocol.Response{Successful: true, Message: "topic removed"}, nil
 }
 
@@ -159,6 +166,9 @@ func (c *DataServiceProvider) Issue(ctx context.Context, task *protocol.Task) (*
 	if err != nil {
 		return resp, err
 	}
+	if !resp.Successful {
+		return resp, fmt.Errorf("task create failed: %s", resp.Message)
+	}
 	return c.runSetup(task)
 }
 
@@ -175,9 +185,12 @@ func (c *DataServiceProvider) Cancel(ctx context.Context, meta *protocol.Meta) (
 }
 
 func (c *DataServiceProvider) Finish(ctx context.Context, meta *protocol.Meta) (*protocol.Response, error) {
-	//call Canceled
-	c.runFinished(meta)
-	return &protocol.Response{Successful: true}, nil
+	resp, err := c.runFinished(meta)
+	if err != nil {
+		core.AppLog.Error().Msgf("runFinished failed txn=%d: %s", meta.Id, err.Error())
+		return resp, err
+	}
+	return resp, nil
 }
 
 func (c *DataServiceProvider) TopicList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {

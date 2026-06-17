@@ -32,12 +32,13 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
-	if plan.AppRepo == nil || plan.AppRepo.Name == "" {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "appRepo name is required"}))
+	if plan.Platform == "" {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "platform is required"}))
 		return
 	}
-	if plan.Vendor == "" {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "vendor is required"}))
+	// App tasks require an appRepo; service tasks require a name instead.
+	if (plan.AppRepo == nil || plan.AppRepo.Name == "") && plan.Name == "" {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "appRepo or service name is required"}))
 		return
 	}
 
@@ -47,31 +48,27 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 		return
 	}
 
+	p := plan.Platform
 	tb := persistence.NewTaskBuilder(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "cluster-create"})
 
-	// Validator: check repo and cloud resources are ready
 	vb := tb.Validator(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "validator"})
-	vb.Transaction().Meta(&protocol.Meta{Name: "check"}).Message(msg).Build()
+	vb.Transaction().Meta(&protocol.Meta{Name: "check_" + p}).Message(msg).Build()
 	vb.Build()
 
-	// Job 1: create cloud VM instances
 	jb1 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "create"})
-	jb1.Transaction().Meta(&protocol.Meta{Name: "create"}).Message(msg).Build()
+	jb1.Transaction().Meta(&protocol.Meta{Name: "create_" + p}).Message(msg).Build()
 	jb1.Build()
 
-	// Job 2: install Docker and upload git SSH key on new VMs
 	jb2 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "update"})
-	jb2.Transaction().Meta(&protocol.Meta{Name: "update"}).Message(msg).Build()
+	jb2.Transaction().Meta(&protocol.Meta{Name: "update_" + p}).Message(msg).Build()
 	jb2.Build()
 
-	// Job 3: clone repo and build Docker image on VMs
 	jb3 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "build"})
-	jb3.Transaction().Meta(&protocol.Meta{Name: "build"}).Message(msg).Build()
+	jb3.Transaction().Meta(&protocol.Meta{Name: "build_" + p}).Message(msg).Build()
 	jb3.Build()
 
-	// Job 4: deploy Docker image from source tree config on VMs
 	jb4 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "deploy"})
-	jb4.Transaction().Meta(&protocol.Meta{Name: "deploy"}).Message(msg).Build()
+	jb4.Transaction().Meta(&protocol.Meta{Name: "deploy_" + p}).Message(msg).Build()
 	jb4.Build()
 
 	rp, err := s.Cluster().Issue(tb.Build())

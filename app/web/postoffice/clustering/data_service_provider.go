@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/persistence"
@@ -14,6 +15,7 @@ import (
 	"gameclustering.com/internal/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -151,7 +153,7 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	c.DRequest = make(chan TopicRequest, NODE_EVENT_BUFFER_SIZE)
 	c.listeners = make(map[string]ReceiverAsync) //chan *protocol.Topic)
 	c.listenerPool = make([]string, 0)
-	c.subscriptions = SubscriptionRegistry{topicEnds: make(map[core.TopicKey]map[string]core.Subscription), cPools: make(map[core.TopicKey]*core.RpcConnPool), auth: c.auth, caCert: c.CACert}
+	c.subscriptions = SubscriptionRegistry{topicEnds: make(map[core.TopicKey]map[string]core.Subscription), cPools: make(map[core.TopicKey]*core.RpcConnPool), roundIdx: make(map[string]int), auth: c.auth, caCert: c.CACert}
 
 	c.DSet = make(chan SetData, NODE_EVENT_BUFFER_SIZE)
 	c.DPull = make(chan core.RingSync, NODE_EVENT_BUFFER_SIZE)
@@ -164,7 +166,8 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	if err != nil {
 		panic(err)
 	}
-	rpc := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(c.auditCall), grpc.StreamInterceptor(c.auditStreaming))
+	ep := keepalive.EnforcementPolicy{MinTime: 30 * time.Second, PermitWithoutStream: true}
+	rpc := grpc.NewServer(grpc.Creds(creds), grpc.KeepaliveEnforcementPolicy(ep), grpc.UnaryInterceptor(c.auditCall), grpc.StreamInterceptor(c.auditStreaming))
 	c.server = rpc
 	protocol.RegisterDataServiceServer(rpc, c)
 	protocol.RegisterPostofficeServiceServer(rpc, c)

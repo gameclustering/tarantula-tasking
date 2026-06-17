@@ -17,6 +17,7 @@ const (
 type ResourceUpdated func()
 
 func (c *DataServiceProvider) Setup(ctx context.Context, task *protocol.Task) (*protocol.Response, error) {
+	core.AppLog.Info().Msgf("Setup called task=%d prefix=%d jobs=%d", task.Meta.Id, task.Meta.Prefix, len(task.Jobs))
 	c.TManager.Set(task)
 	return &protocol.Response{Successful: true, Meta: task.Meta}, nil
 }
