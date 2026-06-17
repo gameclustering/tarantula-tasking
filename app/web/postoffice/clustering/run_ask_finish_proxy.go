@@ -3,6 +3,7 @@ package clustering
 import (
 	context "context"
 	"fmt"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
@@ -25,7 +26,9 @@ func (c *DataServiceProvider) runAskFinish(t *protocol.Meta) (*protocol.Response
 			continue
 		}
 		dsp := protocol.NewTransactionServiceClient(conn.Conn)
-		resp, err := dsp.AskFinish(context.Background(), t)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		resp, err := dsp.AskFinish(ctx, t)
 		if err != nil {
 			core.AppLog.Warn().Msgf("runAskFinish gRPC failed txn=%d endpoint=%s err=%s", t.Id, sub.Endpoint, err.Error())
 		}
