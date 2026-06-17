@@ -17,7 +17,7 @@ type GoogleCloudService struct {
 }
 
 func (s *GoogleCloudService) Config() string {
-	return "/etc/tarantula/cloud-conf.json"
+	return "/etc/tarantula/google_cloud-conf.json"
 }
 
 func (s *GoogleCloudService) Start(f core.Env) error {

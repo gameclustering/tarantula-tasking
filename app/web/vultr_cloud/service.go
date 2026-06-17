@@ -19,7 +19,7 @@ type VultrCloudService struct {
 }
 
 func (s *VultrCloudService) Config() string {
-	return "/etc/tarantula/cloud-conf.json"
+	return "/etc/tarantula/vultr_cloud-conf.json"
 }
 
 func (s *VultrCloudService) Start(f core.Env) error {
