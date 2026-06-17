@@ -11,6 +11,7 @@ import (
 	"gameclustering.com/internal/protocol"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
@@ -110,11 +111,19 @@ func (p *RpcConnPool) Conn() (*RpcConn, error) {
 	p.Lock()
 	defer p.Unlock()
 	ckey := fmt.Sprintf("%s_%d", p.Target, p.index)
-	c, created := p.pool[ckey]
-	if !created {
+	c, exists := p.pool[ckey]
+	if exists {
+		state := c.Conn.GetState()
+		if state == connectivity.TransientFailure || state == connectivity.Shutdown {
+			c.Conn.Close()
+			delete(p.pool, ckey)
+			exists = false
+		}
+	}
+	if !exists {
 		cx, err := p.connect(p.Target)
 		if err != nil {
-			return c, err
+			return nil, err
 		}
 		c = &RpcConn{Conn: cx, Seq: p.index}
 		p.pool[ckey] = c
