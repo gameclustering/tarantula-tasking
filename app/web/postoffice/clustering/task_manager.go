@@ -12,9 +12,10 @@ import (
 )
 
 // reserveFirstRetryTimeout is the delay before the first reserve retry.
-// Kept short so a dropped TRANS_MAIL (e.g. reconnect window) is recovered well
-// within the JOB_TIMEOUT window. Subsequent retries use tc.Meta.Timeout.
-const reserveFirstRetryTimeout = 60 * time.Second
+// Must be long enough for slow stages (docker build on a cold VM takes ~3 min).
+// Kept under tc.Meta.Timeout so recovery still happens if the executor hangs.
+// Subsequent retries use tc.Meta.Timeout.
+const reserveFirstRetryTimeout = 300 * time.Second
 
 type TaskResource struct {
 	resource *protocol.Task
