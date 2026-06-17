@@ -193,7 +193,7 @@ func (h *buildHandler) buildApp(ssh util.SshClient, host, org string, repo *prot
 	}
 	setupCmds := []string{
 		fmt.Sprintf("rm -rf %s", repo.Name),
-		fmt.Sprintf("git clone git@github.com:%s/%s.git", org, repo.Name),
+		fmt.Sprintf("git clone https://github.com/%s/%s.git", org, repo.Name),
 		fmt.Sprintf("cd %s && git checkout %s", repo.Name, ref),
 	}
 	for _, cmd := range setupCmds {

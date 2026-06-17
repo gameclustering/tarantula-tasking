@@ -36,7 +36,11 @@ func (h *createHandler) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
+	planName := plan.Name
+	if planName == "" && plan.AppRepo != nil {
+		planName = plan.AppRepo.Name
+	}
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, planName, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
@@ -79,7 +83,11 @@ func (h *createHandler) cancel(t *protocol.Transaction) error {
 		core.AppLog.Warn().Msgf("cancel git auth key: %s", err)
 		return h.store.Insert(t.Meta)
 	}
-	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
+	cancelName := plan.Name
+	if cancelName == "" && plan.AppRepo != nil {
+		cancelName = plan.AppRepo.Name
+	}
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, cancelName, gitKey)
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel deploy config: %s", err)
 		return h.store.Insert(t.Meta)
