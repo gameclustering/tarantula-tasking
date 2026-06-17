@@ -10,8 +10,7 @@ import (
 const (
 	RPC_PORT int = 7001
 
-	SET_OPT_RECOVER uint32 = 1
-	SET_OPT_CLOSE   uint32 = 2
+	SET_OPT_CLOSE uint32 = 2
 
 	GET_DATA_REQUEST    uint32 = 10
 	CREATE_DATA_REQUEST uint32 = 11
