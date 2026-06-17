@@ -1,4 +1,4 @@
-package main
+package cloud
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
@@ -13,46 +14,48 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewPlanObjectUpdate(s *CloudService) *protocol.TccTransationListener {
-	p := PlanObjectUpdate{s}
+func NewUpdate(mgr *bootstrap.AppManager, store *Store, vaultKey string, factory PlatformFactory) *protocol.TccTransationListener {
+	h := &updateHandler{mgr: mgr, store: store, vaultKey: vaultKey, factory: factory}
 	tcc := protocol.TccTransationListener{}
-	tcc.Reserve = p.reserve
-	tcc.Confirm = p.confirm
-	tcc.Cancel = p.cancel
+	tcc.Reserve = h.reserve
+	tcc.Confirm = h.confirm
+	tcc.Cancel = h.cancel
 	return &tcc
 }
 
-type PlanObjectUpdate struct {
-	*CloudService
+type updateHandler struct {
+	mgr      *bootstrap.AppManager
+	store    *Store
+	vaultKey string
+	factory  PlatformFactory
 }
 
-func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
+func (h *updateHandler) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update reserve %v", t.Meta)
 	var plan protocol.PlanObject
 	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
-	gitKey, err := v.Cluster().AuthKey("git")
+	gitKey, err := h.mgr.Cluster().AuthKey("git")
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Platform))
+	platformKey, err := h.mgr.Cluster().AuthKey(h.vaultKey)
 	if err != nil {
-		return fmt.Errorf("%s auth key: %w", plan.Platform, err)
+		return fmt.Errorf("%s auth key: %w", h.vaultKey, err)
 	}
-	platform, err := newPlatform(plan.Platform, deployPhase, platformKey)
+	platform, err := h.factory(deployPhase, platformKey)
 	if err != nil {
 		return fmt.Errorf("platform init: %w", err)
 	}
 	defer platform.Close()
 
-	// Write git key to a temp file for SCP uploads.
 	keyFile, err := os.CreateTemp("", "id_ed25519_*")
 	if err != nil {
 		return fmt.Errorf("create temp key file: %w", err)
@@ -71,14 +74,14 @@ func (v *PlanObjectUpdate) reserve(t *protocol.Transaction) error {
 
 	for i := 1; i <= deployPhase.InstanceNumber; i++ {
 		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
-		if err := v.setupInstance(platform, name, sshUser, keyFile.Name()); err != nil {
+		if err := h.setupInstance(platform, name, sshUser, keyFile.Name()); err != nil {
 			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
 		}
 	}
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }
 
-func (v *PlanObjectUpdate) setupInstance(platform InstancePlatform, name, sshUser, keyFile string) error {
+func (h *updateHandler) setupInstance(platform InstancePlatform, name, sshUser, keyFile string) error {
 	ip, err := platform.IP(name)
 	if err != nil {
 		return fmt.Errorf("get IP: %w", err)
@@ -98,16 +101,16 @@ func (v *PlanObjectUpdate) setupInstance(platform InstancePlatform, name, sshUse
 	}
 	defer ssh.Close()
 
-	if err := v.installDocker(ssh, sshUser, name); err != nil {
+	if err := h.installDocker(ssh, sshUser, name); err != nil {
 		return fmt.Errorf("install docker: %w", err)
 	}
-	if err := v.uploadGitKey(ssh, sshUser, keyFile, name); err != nil {
+	if err := h.uploadGitKey(ssh, sshUser, keyFile, name); err != nil {
 		return fmt.Errorf("upload git key: %w", err)
 	}
 	return nil
 }
 
-func (v *PlanObjectUpdate) installDocker(ssh util.SshClient, user string, name string) error {
+func (h *updateHandler) installDocker(ssh util.SshClient, user string, name string) error {
 	var out bytes.Buffer
 	cmds := []string{
 		"mkdir -p ~/.ssh && chmod 700 ~/.ssh",
@@ -132,7 +135,7 @@ func (v *PlanObjectUpdate) installDocker(ssh util.SshClient, user string, name s
 	return nil
 }
 
-func (v *PlanObjectUpdate) uploadGitKey(ssh util.SshClient, user string, keyFile string, name string) error {
+func (h *updateHandler) uploadGitKey(ssh util.SshClient, user string, keyFile string, name string) error {
 	f, err := os.Open(keyFile)
 	if err != nil {
 		return fmt.Errorf("open key file: %w", err)
@@ -146,12 +149,12 @@ func (v *PlanObjectUpdate) uploadGitKey(ssh util.SshClient, user string, keyFile
 	return nil
 }
 
-func (v *PlanObjectUpdate) confirm(t *protocol.Transaction) error {
+func (h *updateHandler) confirm(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update confirm %v", t.Meta)
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }
 
-func (v *PlanObjectUpdate) cancel(t *protocol.Transaction) error {
+func (h *updateHandler) cancel(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("update cancel %v", t.Meta)
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }

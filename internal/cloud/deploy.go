@@ -1,10 +1,11 @@
-package main
+package cloud
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 
+	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
@@ -12,53 +13,58 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewPlanObjectDeploy(s *CloudService) *protocol.TccTransationListener {
-	p := PlanObjectDeploy{s}
+func NewDeploy(mgr *bootstrap.AppManager, store *Store, vaultKey string, factory PlatformFactory) *protocol.TccTransationListener {
+	h := &deployHandler{mgr: mgr, store: store, vaultKey: vaultKey, factory: factory}
 	tcc := protocol.TccTransationListener{}
-	tcc.Reserve = p.reserve
-	tcc.Confirm = p.confirm
-	tcc.Cancel = p.cancel
+	tcc.Reserve = h.reserve
+	tcc.Confirm = h.confirm
+	tcc.Cancel = h.cancel
 	return &tcc
 }
 
-type PlanObjectDeploy struct {
-	*CloudService
+type deployHandler struct {
+	mgr      *bootstrap.AppManager
+	store    *Store
+	vaultKey string
+	factory  PlatformFactory
 }
 
-func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
+func (h *deployHandler) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("deploy reserve %v", t.Meta)
 	var plan protocol.PlanObject
 	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
-	gitKey, err := v.Cluster().AuthKey("git")
+	gitKey, err := h.mgr.Cluster().AuthKey("git")
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Platform))
+	platformKey, err := h.mgr.Cluster().AuthKey(h.vaultKey)
 	if err != nil {
-		return fmt.Errorf("%s auth key: %w", plan.Platform, err)
+		return fmt.Errorf("%s auth key: %w", h.vaultKey, err)
 	}
-	dockerKey, err := v.Cluster().AuthKey("docker")
+	dockerKey, err := h.mgr.Cluster().AuthKey("docker")
 	if err != nil {
 		return fmt.Errorf("docker auth key: %w", err)
 	}
-	platform, err := newPlatform(plan.Platform, deployPhase, platformKey)
+	platform, err := h.factory(deployPhase, platformKey)
 	if err != nil {
 		return fmt.Errorf("platform init: %w", err)
 	}
 	defer platform.Close()
 
-	ref := ""
+	// App task ref: from appRepo tag/branch. Service task ref: env name.
+	ref := plan.Env
 	if plan.AppRepo != nil {
-		ref = plan.AppRepo.Tag
-		if ref == "" {
+		if plan.AppRepo.Tag != "" {
+			ref = plan.AppRepo.Tag
+		} else if plan.AppRepo.Branch != "" {
 			ref = plan.AppRepo.Branch
 		}
 	}
@@ -71,10 +77,12 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 		sshUser = platform.SSHUser()
 	}
 
-	vaultHost := v.F.Vlt.Host
+	vaultHost := h.mgr.F.Vlt.Host
 	if deployPhase.VaultHost != "" {
 		vaultHost = deployPhase.VaultHost
 	}
+	vaultToken := h.mgr.F.Vlt.Token
+
 	var firstNodeIP string
 	for i := 1; i <= deployPhase.InstanceNumber; i++ {
 		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
@@ -82,17 +90,17 @@ func (v *PlanObjectDeploy) reserve(t *protocol.Transaction) error {
 		if i > 1 && firstNodeIP != "" {
 			clusterBootstrap = fmt.Sprintf("http://%s:8080", firstNodeIP)
 		}
-		ip, err := v.deployOnInstance(platform, name, sshUser, i, ref, deployPhase.Services, plan.AppRepo, dockerKey.Docker, vaultHost, v.F.Vlt.Token, clusterBootstrap)
+		ip, err := h.deployOnInstance(platform, name, sshUser, i, ref, deployPhase.Services, plan.AppRepo, dockerKey.Docker, vaultHost, vaultToken, clusterBootstrap)
 		if err != nil {
 			core.AppLog.Warn().Msgf("deploy on instance %s: %s", name, err.Error())
 		} else if firstNodeIP == "" {
 			firstNodeIP = ip
 		}
 	}
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }
 
-func (v *PlanObjectDeploy) deployOnInstance(platform InstancePlatform, name, sshUser string, seq int, ref string, services []core.GcpServiceConfig, repo *protocol.RepoObject, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string) (string, error) {
+func (h *deployHandler) deployOnInstance(platform InstancePlatform, name, sshUser string, seq int, ref string, services []core.GcpServiceConfig, repo *protocol.RepoObject, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string) (string, error) {
 	ip, err := platform.IP(name)
 	if err != nil {
 		return "", fmt.Errorf("get IP: %w", err)
@@ -107,7 +115,6 @@ func (v *PlanObjectDeploy) deployOnInstance(platform InstancePlatform, name, ssh
 	if cred == "" {
 		cred = docker.Password
 	}
-
 	var out bytes.Buffer
 	loginCmd := fmt.Sprintf("printf '%%s' '%s' | docker login %s -u %s --password-stdin", cred, docker.Server, docker.Username)
 	out.Reset()
@@ -120,7 +127,7 @@ func (v *PlanObjectDeploy) deployOnInstance(platform InstancePlatform, name, ssh
 		if repo == nil || repo.Name == "" {
 			return ip, nil
 		}
-		if err := v.runContainer(ssh, name, repo.Name, ref, "", "", docker, vaultHost, vaultToken, "", seq, &out); err != nil {
+		if err := h.runContainer(ssh, name, repo.Name, ref, "", "", docker, vaultHost, vaultToken, "", seq, &out); err != nil {
 			return "", err
 		}
 		return ip, nil
@@ -131,14 +138,14 @@ func (v *PlanObjectDeploy) deployOnInstance(platform InstancePlatform, name, ssh
 		if strings.Contains(svc.Name, "postoffice") {
 			bootstrap = clusterBootstrap
 		}
-		if err := v.runContainer(ssh, name, svc.Name, ref, svc.Network, svc.HttpBinding, docker, vaultHost, vaultToken, bootstrap, seq, &out); err != nil {
+		if err := h.runContainer(ssh, name, svc.Name, ref, svc.Network, svc.HttpBinding, docker, vaultHost, vaultToken, bootstrap, seq, &out); err != nil {
 			return "", err
 		}
 	}
 	return ip, nil
 }
 
-func (v *PlanObjectDeploy) runContainer(ssh util.SshClient, instanceName, svcName, ref, network, httpBinding string, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string, seq int, out *bytes.Buffer) error {
+func (h *deployHandler) runContainer(ssh util.SshClient, instanceName, svcName, ref, network, httpBinding string, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string, seq int, out *bytes.Buffer) error {
 	image := fmt.Sprintf("%s/%s:%s", docker.Username, svcName, ref)
 
 	var flags []string
@@ -173,12 +180,12 @@ func (v *PlanObjectDeploy) runContainer(ssh util.SshClient, instanceName, svcNam
 	return nil
 }
 
-func (v *PlanObjectDeploy) confirm(t *protocol.Transaction) error {
+func (h *deployHandler) confirm(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("deploy confirm %v", t.Meta)
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }
 
-func (v *PlanObjectDeploy) cancel(t *protocol.Transaction) error {
+func (h *deployHandler) cancel(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("deploy cancel %v", t.Meta)
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }

@@ -1,4 +1,4 @@
-package main
+package cloud
 
 import (
 	"fmt"
@@ -10,11 +10,10 @@ import (
 	"gameclustering.com/internal/util"
 )
 
-// loadDeployConfig clones (or updates) the deploy repo, checks out the
-// specified ref, and returns the deploy config for the given platform.
-// It looks for <platform>/<name>/deploy.json when name is non-empty,
-// falling back to <platform>/deploy.json.
-func loadDeployConfig(deployRepo *protocol.RepoObject, platform, name string, gitKey *protocol.AuthKey) (*core.DeployConfig, error) {
+// LoadDeployConfig clones (or updates) the deploy repo and returns the deploy
+// config for the given platform. It looks for <platform>/<name>/deploy.json
+// when name is non-empty, falling back to <platform>/deploy.json.
+func LoadDeployConfig(deployRepo *protocol.RepoObject, platform, name string, gitKey *protocol.AuthKey) (*core.DeployConfig, error) {
 	if deployRepo == nil || deployRepo.Name == "" {
 		return nil, fmt.Errorf("deploy repo is required")
 	}

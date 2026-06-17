@@ -1,6 +1,7 @@
 package main
 
 import (
+	"gameclustering.com/internal/cloud"
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
@@ -12,10 +13,10 @@ type gcpPlatform struct {
 	phase  core.PhaseConfig
 }
 
-func newGcpPlatform(phase core.PhaseConfig, key *protocol.AuthKey) (*gcpPlatform, error) {
+func newGcpPlatform(phase core.PhaseConfig, key *protocol.AuthKey) (cloud.InstancePlatform, error) {
 	zone := phase.Settings["zone"]
 	if zone == "" {
-		zone = phase.Settings["Zone"] // case-insensitive fallback
+		zone = phase.Settings["Zone"]
 	}
 	gcp := util.GcpApi{
 		ServiceAccount: key.Gcp.Iam,
@@ -30,7 +31,7 @@ func newGcpPlatform(phase core.PhaseConfig, key *protocol.AuthKey) (*gcpPlatform
 
 func (p *gcpPlatform) Provision(name string) error {
 	if _, err := p.api.Get(name); err == nil {
-		return nil // already exists
+		return nil
 	}
 	return p.api.Insert(name, p.phase.Settings["machineType"], p.phase.Settings["imageType"])
 }

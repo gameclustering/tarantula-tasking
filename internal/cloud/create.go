@@ -1,48 +1,52 @@
-package main
+package cloud
 
 import (
 	"fmt"
 
+	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewPlanObjectCreate(s *CloudService) *protocol.TccTransationListener {
-	p := PlanObjectCreate{s}
+func NewCreate(mgr *bootstrap.AppManager, store *Store, vaultKey string, factory PlatformFactory) *protocol.TccTransationListener {
+	h := &createHandler{mgr: mgr, store: store, vaultKey: vaultKey, factory: factory}
 	tcc := protocol.TccTransationListener{}
-	tcc.Reserve = p.reserve
-	tcc.Confirm = p.confirm
-	tcc.Cancel = p.cancel
+	tcc.Reserve = h.reserve
+	tcc.Confirm = h.confirm
+	tcc.Cancel = h.cancel
 	return &tcc
 }
 
-type PlanObjectCreate struct {
-	*CloudService
+type createHandler struct {
+	mgr      *bootstrap.AppManager
+	store    *Store
+	vaultKey string
+	factory  PlatformFactory
 }
 
-func (v *PlanObjectCreate) reserve(t *protocol.Transaction) error {
+func (h *createHandler) reserve(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("create reserve %v", t.Meta)
 	var plan protocol.PlanObject
 	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		return err
 	}
-	gitKey, err := v.Cluster().AuthKey("git")
+	gitKey, err := h.mgr.Cluster().AuthKey("git")
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
 
-	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Platform))
+	platformKey, err := h.mgr.Cluster().AuthKey(h.vaultKey)
 	if err != nil {
-		return fmt.Errorf("%s auth key: %w", plan.Platform, err)
+		return fmt.Errorf("%s auth key: %w", h.vaultKey, err)
 	}
-	platform, err := newPlatform(plan.Platform, deployPhase, platformKey)
+	platform, err := h.factory(deployPhase, platformKey)
 	if err != nil {
 		return fmt.Errorf("platform init: %w", err)
 	}
@@ -55,41 +59,41 @@ func (v *PlanObjectCreate) reserve(t *protocol.Transaction) error {
 		}
 		core.AppLog.Info().Msgf("create: instance %s provisioned", name)
 	}
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }
 
-func (v *PlanObjectCreate) confirm(t *protocol.Transaction) error {
+func (h *createHandler) confirm(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("create confirm %v", t.Meta)
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }
 
-func (v *PlanObjectCreate) cancel(t *protocol.Transaction) error {
+func (h *createHandler) cancel(t *protocol.Transaction) error {
 	core.AppLog.Debug().Msgf("create cancel %v", t.Meta)
 	var plan protocol.PlanObject
 	if err := anypb.UnmarshalTo(t.Message, &plan, proto.UnmarshalOptions{}); err != nil {
 		core.AppLog.Warn().Msgf("cancel unmarshal: %s", err)
-		return v.insert(t.Meta)
+		return h.store.Insert(t.Meta)
 	}
-	gitKey, err := v.Cluster().AuthKey("git")
+	gitKey, err := h.mgr.Cluster().AuthKey("git")
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel git auth key: %s", err)
-		return v.insert(t.Meta)
+		return h.store.Insert(t.Meta)
 	}
-	cfg, err := loadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel deploy config: %s", err)
-		return v.insert(t.Meta)
+		return h.store.Insert(t.Meta)
 	}
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
-	platformKey, err := v.Cluster().AuthKey(platformVaultKey(plan.Platform))
+	platformKey, err := h.mgr.Cluster().AuthKey(h.vaultKey)
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel platform key: %s", err)
-		return v.insert(t.Meta)
+		return h.store.Insert(t.Meta)
 	}
-	platform, err := newPlatform(plan.Platform, deployPhase, platformKey)
+	platform, err := h.factory(deployPhase, platformKey)
 	if err != nil {
 		core.AppLog.Warn().Msgf("cancel platform init: %s", err)
-		return v.insert(t.Meta)
+		return h.store.Insert(t.Meta)
 	}
 	defer platform.Close()
 
@@ -99,5 +103,5 @@ func (v *PlanObjectCreate) cancel(t *protocol.Transaction) error {
 			core.AppLog.Warn().Msgf("cancel: remove %s: %s", name, err)
 		}
 	}
-	return v.insert(t.Meta)
+	return h.store.Insert(t.Meta)
 }

@@ -1,6 +1,8 @@
-module gameclustering.com/cloud
+module gameclustering.com/vultr_cloud
 
 go 1.26.3
+
+replace gameclustering.com/internal/cloud => ../../../internal/cloud
 
 replace gameclustering.com/internal/persistence => ../../../internal/persistence
 
@@ -15,6 +17,7 @@ replace gameclustering.com/internal/bootstrap => ../../../internal/bootstrap
 replace gameclustering.com/internal/protocol => ../../../internal/protocol
 
 require (
+	gameclustering.com/internal/cloud v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/bootstrap v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/core v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/event v0.0.0-00010101000000-000000000000
@@ -26,6 +29,7 @@ require (
 )
 
 require (
+tgameclustering.com/internal/cloud v0.0.0-00010101000000-000000000000
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.62.0 // indirect
