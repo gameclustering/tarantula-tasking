@@ -25,11 +25,11 @@ fi
 
 echo "publish image to : ${prefix}"
 
-apps=("admin" "postoffice" "cloud" "nginx")
+apps=("admin" "postoffice" "google_cloud" "vultr_cloud")
 for app in "${apps[@]}"; do
 
-  echo "pushing image : ${prefix}/${app}:${version}"
-  sudo docker push ${prefix}/tarantula.$app:$version
+  echo "pushing image : ${prefix}/tarantula.${app}:${version}"
+  docker push ${prefix}/tarantula.$app:$version
   Check
 done
 
