@@ -172,7 +172,7 @@ func (h *deployHandler) runContainer(ssh util.SshClient, instanceName, svcName, 
 	cmds := []string{
 		fmt.Sprintf("docker pull %s", image),
 		fmt.Sprintf("docker stop %s 2>/dev/null || true && docker rm %s 2>/dev/null || true", svcName, svcName),
-		fmt.Sprintf("docker run -d --name %s %s %s", svcName, runArgs, image),
+		fmt.Sprintf("docker run -d --restart unless-stopped --name %s %s %s", svcName, runArgs, image),
 	}
 	for _, cmd := range cmds {
 		out.Reset()
