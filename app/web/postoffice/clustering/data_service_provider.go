@@ -39,9 +39,8 @@ type DataServiceProvider struct {
 	seq         core.Sequence
 	auth        core.Authenticator
 	//write worker chan
-	DSet    chan SetData
-	DPull   chan core.RingSync
-	DWait   sync.WaitGroup
+	DSet  chan SetData
+	DWait sync.WaitGroup
 	running bool
 
 	//topic message
@@ -156,7 +155,6 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	c.subscriptions = SubscriptionRegistry{topicEnds: make(map[core.TopicKey]map[string]core.Subscription), cPools: make(map[core.TopicKey]*core.RpcConnPool), roundIdx: make(map[string]int), auth: c.auth, caCert: c.CACert}
 
 	c.DSet = make(chan SetData, NODE_EVENT_BUFFER_SIZE)
-	c.DPull = make(chan core.RingSync, NODE_EVENT_BUFFER_SIZE)
 	for n := range SET_OPERATOR_NUM {
 		go c.runSetData(n)
 	}

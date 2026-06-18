@@ -271,7 +271,6 @@ func (m *DataServiceProvider) RingUpdated() {
 		m.DSet <- SetData{Opt: core.SET_OPT_CLOSE}
 	}
 	close(m.DSet)
-	close(m.DPull)
 	m.server.Stop()
 	m.Local.Close()
 	core.AppLog.Info().Msg("local data service provider has stopped")

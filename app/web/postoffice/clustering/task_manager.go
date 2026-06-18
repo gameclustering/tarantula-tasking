@@ -64,9 +64,14 @@ type TaskManager struct {
 
 	s *DataServiceProvider
 
-	tasks   chan *protocol.Task
-	jobs    chan *protocol.Job
-	updates chan *protocol.Meta
+	tasks      chan *protocol.Task
+	jobs       chan *protocol.Job
+	updates    chan *protocol.Meta
+	recoveries chan uint64
+}
+
+func (m *TaskManager) Reload(taskId uint64) {
+	m.recoveries <- taskId
 }
 
 func (m *TaskManager) set(t *TaskResource) {
@@ -282,6 +287,7 @@ func (m *TaskManager) reload(meta *protocol.Meta) (*TaskResource, error) {
 
 	job := tr.pending[tr.jobIndex]
 	job.Meta.State = protocol.TCC_JOB_TIMEOUT
+	job.Meta.Prefix = tr.resource.Meta.Prefix
 	go m.s.updateTask(tr, func() {
 		core.AppLog.Debug().Msgf("task updated from reload %d", tr.revision)
 	})
@@ -303,8 +309,15 @@ func (m *TaskManager) Wait() {
 	m.tasks = make(chan *protocol.Task, 10)
 	m.updates = make(chan *protocol.Meta, 10)
 	m.jobs = make(chan *protocol.Job, 10)
+	m.recoveries = make(chan uint64, 10)
 	for m.s.running {
 		select {
+		case taskId := <-m.recoveries:
+			if _, exists := m.trs[taskId]; !exists {
+				if _, err := m.reload(&protocol.Meta{TaskId: taskId}); err != nil {
+					core.AppLog.Warn().Msgf("recover task=%d: %s", taskId, err.Error())
+				}
+			}
 		case task := <-m.tasks:
 			core.AppLog.Info().Msgf("Wait received task=%d prefix=%d", task.Meta.Id, task.Meta.Prefix)
 			tr := NewTaskResource(task, 1)

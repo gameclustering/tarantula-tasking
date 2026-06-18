@@ -6,6 +6,20 @@ import (
 	"os"
 )
 
+// CredentialField is a single field in a credential spec: either a static value or a generated password.
+type CredentialField struct {
+	Value    string `json:"value"`
+	Generate bool   `json:"generate"`
+}
+
+// CredentialSpec describes credentials to create in Vault before deploying the first instance.
+// If the secret already exists in Vault the seed step is skipped (idempotent).
+type CredentialSpec struct {
+	VaultMount string                     `json:"vaultMount"`
+	VaultPath  string                     `json:"vaultPath"`
+	Fields     map[string]CredentialField `json:"fields"`
+}
+
 // PhaseConfig is a platform-agnostic deployment phase.
 // Platform-specific values (zone, region, machineType, etc.) go in Settings.
 type PhaseConfig struct {
@@ -15,8 +29,9 @@ type PhaseConfig struct {
 	BuildHost      string            `json:"buildHost"` // pre-existing build server; empty means provision one
 	VaultHost      string            `json:"vaultHost"` // public vault URL for deployed containers; overrides worker's VAULT_HOST
 	Description    string            `json:"description"`
-	Services       []GcpServiceConfig `json:"services"` // fields are platform-agnostic
-	Settings       map[string]string  `json:"settings"` // platform-specific key-value pairs
+	Services       []GcpServiceConfig `json:"services"`   // fields are platform-agnostic
+	Settings       map[string]string  `json:"settings"`   // platform-specific key-value pairs
+	Credentials    *CredentialSpec    `json:"credentials"` // auto-seed service credentials into Vault on first deploy
 }
 
 type DeployEnvConfig struct {
@@ -94,6 +109,9 @@ func mergePhase(primary, fallback PhaseConfig) PhaseConfig {
 	}
 	if len(primary.Services) == 0 {
 		primary.Services = fallback.Services
+	}
+	if primary.Credentials == nil {
+		primary.Credentials = fallback.Credentials
 	}
 	if primary.Settings == nil {
 		primary.Settings = make(map[string]string)

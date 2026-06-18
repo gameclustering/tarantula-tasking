@@ -40,7 +40,11 @@ func (h *updateHandler) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
+	planName := plan.Name
+	if planName == "" && plan.AppRepo != nil {
+		planName = plan.AppRepo.Name
+	}
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, planName, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}

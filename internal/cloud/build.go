@@ -40,7 +40,11 @@ func (h *buildHandler) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("git auth key: %w", err)
 	}
-	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, plan.Name, gitKey)
+	planName := plan.Name
+	if planName == "" && plan.AppRepo != nil {
+		planName = plan.AppRepo.Name
+	}
+	cfg, err := LoadDeployConfig(plan.DeployRepo, plan.Platform, planName, gitKey)
 	if err != nil {
 		return fmt.Errorf("deploy config: %w", err)
 	}
@@ -135,9 +139,10 @@ func (h *buildHandler) buildService(ssh util.SshClient, host string, gitKey *pro
 		ref = "latest"
 	}
 	repoName := plan.DeployRepo.Name
+	cloneURL := fmt.Sprintf("https://x-token:%s@github.com/%s/%s.git", gitKey.Git.Token, gitKey.Git.Org, repoName)
 	setupCmds := []string{
 		fmt.Sprintf("rm -rf %s", repoName),
-		fmt.Sprintf("git clone git@github.com:%s/%s.git", gitKey.Git.Org, repoName),
+		fmt.Sprintf("git clone %s", cloneURL),
 	}
 	if plan.DeployRepo.Tag != "" || plan.DeployRepo.Branch != "" {
 		checkoutRef := plan.DeployRepo.Tag
@@ -189,7 +194,7 @@ func (h *buildHandler) buildApp(ssh util.SshClient, host, org string, repo *prot
 	}
 	setupCmds := []string{
 		fmt.Sprintf("rm -rf %s", repo.Name),
-		fmt.Sprintf("git clone git@github.com:%s/%s.git", org, repo.Name),
+		fmt.Sprintf("git clone https://github.com/%s/%s.git", org, repo.Name),
 		fmt.Sprintf("cd %s && git checkout %s", repo.Name, ref),
 	}
 	for _, cmd := range setupCmds {
