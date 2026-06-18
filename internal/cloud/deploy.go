@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"strings"
 
@@ -86,6 +87,12 @@ func (h *deployHandler) reserve(t *protocol.Transaction) error {
 		vaultHost = deployPhase.VaultHost
 	}
 	vaultToken := h.mgr.F.Vlt.Token
+
+	if deployPhase.Credentials != nil {
+		if err := h.seedCredentials(deployPhase.Credentials); err != nil {
+			return fmt.Errorf("seed credentials: %w", err)
+		}
+	}
 
 	var firstNodeIP string
 	for i := 1; i <= deployPhase.InstanceNumber; i++ {
@@ -182,6 +189,47 @@ func (h *deployHandler) runContainer(ssh util.SshClient, instanceName, svcName, 
 		core.AppLog.Debug().Msgf("deploy [%s/%s]: %s", instanceName, svcName, strings.TrimSpace(out.String()))
 	}
 	return nil
+}
+
+func (h *deployHandler) seedCredentials(spec *core.CredentialSpec) error {
+	vc := &util.VaultClient{Host: h.mgr.F.Vlt.Host, Token: h.mgr.F.Vlt.Token}
+	if err := vc.Auth(); err != nil {
+		return fmt.Errorf("vault auth: %w", err)
+	}
+	existing, _ := vc.GetSecret(spec.VaultMount, spec.VaultPath)
+	if existing != nil && len(existing.Data) > 0 {
+		core.AppLog.Info().Msgf("credentials already at %s/%s, skipping seed", spec.VaultMount, spec.VaultPath)
+		return nil
+	}
+	data := make(map[string]any, len(spec.Fields))
+	for key, field := range spec.Fields {
+		if field.Generate {
+			pass, err := randomPassword(24)
+			if err != nil {
+				return fmt.Errorf("generate %s: %w", key, err)
+			}
+			data[key] = pass
+		} else {
+			data[key] = field.Value
+		}
+	}
+	if err := vc.PutSecretMap(spec.VaultMount, spec.VaultPath, data); err != nil {
+		return fmt.Errorf("put secret %s/%s: %w", spec.VaultMount, spec.VaultPath, err)
+	}
+	core.AppLog.Info().Msgf("credentials seeded at %s/%s", spec.VaultMount, spec.VaultPath)
+	return nil
+}
+
+func randomPassword(length int) (string, error) {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	for i := range b {
+		b[i] = chars[int(b[i])%len(chars)]
+	}
+	return string(b), nil
 }
 
 func (h *deployHandler) confirm(t *protocol.Transaction) error {
