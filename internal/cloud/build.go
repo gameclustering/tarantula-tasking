@@ -139,9 +139,10 @@ func (h *buildHandler) buildService(ssh util.SshClient, host string, gitKey *pro
 		ref = "latest"
 	}
 	repoName := plan.DeployRepo.Name
+	cloneURL := fmt.Sprintf("https://x-token:%s@github.com/%s/%s.git", gitKey.Git.Token, gitKey.Git.Org, repoName)
 	setupCmds := []string{
 		fmt.Sprintf("rm -rf %s", repoName),
-		fmt.Sprintf("git clone git@github.com:%s/%s.git", gitKey.Git.Org, repoName),
+		fmt.Sprintf("git clone %s", cloneURL),
 	}
 	if plan.DeployRepo.Tag != "" || plan.DeployRepo.Branch != "" {
 		checkoutRef := plan.DeployRepo.Tag
