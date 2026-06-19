@@ -36,6 +36,7 @@ type PhaseConfig struct {
 	VaultHost      string            `json:"vaultHost"` // public vault URL for deployed containers; overrides worker's VAULT_HOST
 	Description    string            `json:"description"`
 	Services       []GcpServiceConfig `json:"services"`   // fields are platform-agnostic
+	Ports          []string           `json:"ports"`      // host:container port mappings for single-repo deploys
 	Settings       map[string]string  `json:"settings"`   // platform-specific key-value pairs
 	Credentials    *CredentialSpec    `json:"credentials"` // auto-seed service credentials into Vault on first deploy
 	TestRepo       string             `json:"testRepo"`   // test phase: repo containing k6 scripts
@@ -118,6 +119,9 @@ func mergePhase(primary, fallback PhaseConfig) PhaseConfig {
 	}
 	if len(primary.Services) == 0 {
 		primary.Services = fallback.Services
+	}
+	if len(primary.Ports) == 0 {
+		primary.Ports = fallback.Ports
 	}
 	if primary.Credentials == nil {
 		primary.Credentials = fallback.Credentials

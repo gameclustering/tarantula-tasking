@@ -136,12 +136,14 @@ func (h *testHandler) reserve(t *protocol.Transaction) error {
 	} {
 		out.Reset()
 		if err := ssh.Run(cmd, &out); err != nil {
+			core.AppLog.Warn().Msgf("test [%s]: clone failed: %s — %s", testName, err, out.String())
 			return fmt.Errorf("clone test repo: %w — %s", err, out.String())
 		}
 	}
 
 	out.Reset()
 	if err := ssh.Run(fmt.Sprintf("BASE_URL='%s' bash tests/entrypoint.sh 2>&1", baseURL), &out); err != nil {
+		core.AppLog.Warn().Msgf("test [%s]: entrypoint failed: %s\n%s", testName, err, strings.TrimSpace(out.String()))
 		return fmt.Errorf("tests failed: %w — %s", err, strings.TrimSpace(out.String()))
 	}
 	core.AppLog.Info().Msgf("test [%s]: all tests passed", planName)
@@ -165,7 +167,7 @@ func (h *testHandler) installK6(ssh util.SshClient, name string) error {
 		"sudo apt-get install -y -qq ca-certificates gnupg curl git",
 		"sudo mkdir -p /etc/apt/keyrings",
 		"curl -fsSL --retry 3 --retry-delay 2 https://dl.k6.io/key.gpg -o /tmp/k6.gpg.asc",
-		"sudo gpg --dearmor /tmp/k6.gpg.asc | sudo tee /etc/apt/keyrings/k6-archive-keyring.gpg > /dev/null",
+		"sudo gpg --dearmor -o /etc/apt/keyrings/k6-archive-keyring.gpg /tmp/k6.gpg.asc",
 		`echo "deb [signed-by=/etc/apt/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list`,
 		"sudo apt-get update -qq",
 		"sudo apt-get install -y -qq k6",
