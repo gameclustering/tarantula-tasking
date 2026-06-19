@@ -25,7 +25,7 @@ fi
 
 echo "publish image to : ${prefix}"
 
-apps=("admin" "postoffice" "google_cloud" "vultr_cloud")
+apps=("admin" "postoffice" "google_cloud" "vultr_cloud" "caddy")
 for app in "${apps[@]}"; do
 
   echo "pushing image : ${prefix}/tarantula.${app}:${version}"

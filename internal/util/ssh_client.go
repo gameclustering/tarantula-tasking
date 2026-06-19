@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/skeema/knownhosts"
@@ -53,6 +54,10 @@ func (c *SshClient) WithKey() error {
 		icc := hc.HostKeyCallback()
 		err := icc(hostname, remote, key)
 		if knownhosts.IsHostKeyChanged(err) {
+			// VM recreated at same IP — replace stale entry with new host key
+			if err2 := replaceKnownHost(c.KHFile, hostname, remote, key); err2 == nil {
+				return nil
+			}
 			return err
 		}
 		if knownhosts.IsHostUnknown(err) {
@@ -79,6 +84,37 @@ func (c *SshClient) WithKey() error {
 	}
 	c.conn = ci
 	return nil
+}
+
+func replaceKnownHost(file, hostname string, remote net.Addr, key ssh.PublicKey) error {
+	host, _, _ := net.SplitHostPort(hostname)
+	if host == "" {
+		host = hostname
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	var kept []string
+	for _, line := range strings.Split(string(data), "\n") {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == host {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	if err := os.WriteFile(file, []byte(strings.Join(kept, "\n")+"\n"), 0600); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return knownhosts.WriteKnownHost(f, hostname, remote, key)
 }
 
 func (c *SshClient) Close() error {

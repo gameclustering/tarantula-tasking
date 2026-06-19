@@ -201,13 +201,20 @@ func (g *GitClient) Clone(url, path string) error {
 }
 
 // CloneOrUpdate clones the repo to path if it does not exist; pulls if it does.
+// If Pull fails (e.g. go-git tracking issue after branch creation), the stale
+// clone is deleted and a fresh clone is performed.
 func (g *GitClient) CloneOrUpdate(url, path string) error {
 	if _, err := os.Stat(filepath.Join(path, ".git")); err == nil {
 		g.Path = path
 		if err := g.Open(); err != nil {
 			return fmt.Errorf("open existing repo: %w", err)
 		}
-		return g.Pull()
+		if err := g.Pull(); err == nil {
+			return nil
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return fmt.Errorf("remove stale repo: %w", err)
+		}
 	}
 	return g.Clone(url, path)
 }

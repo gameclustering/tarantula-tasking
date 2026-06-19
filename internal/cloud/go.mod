@@ -17,7 +17,6 @@ replace gameclustering.com/internal/protocol => ../protocol
 require (
 	gameclustering.com/internal/bootstrap v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/core v0.0.0-00010101000000-000000000000
-	gameclustering.com/internal/event v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/persistence v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/protocol v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/util v0.0.0-00010101000000-000000000000
@@ -30,6 +29,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.62.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	gameclustering.com/internal/event v0.0.0-00010101000000-000000000000 // indirect
 	github.com/0xc0d/encoding v0.1.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
