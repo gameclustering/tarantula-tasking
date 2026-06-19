@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/auth/credentials"
 	compute "cloud.google.com/go/compute/apiv1"
@@ -57,21 +58,25 @@ func (g *GcpApi) List(ins OnInstance) error {
 }
 
 func (g *GcpApi) Get(name string) (*computepb.Instance, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	req := &computepb.GetInstanceRequest{
 		Project:  g.ProjectId,
 		Zone:     g.Zone,
 		Instance: name,
 	}
-	return g.client.Get(context.Background(), req)
+	return g.client.Get(ctx, req)
 }
 
-func (g *GcpApi) Insert(name,machineType,imageType string) error {
+func (g *GcpApi) Insert(name, machineType, imageType string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 	req := &computepb.InsertInstanceRequest{
 		Project: g.ProjectId,
 		Zone:    g.Zone,
 		InstanceResource: &computepb.Instance{
 			Name:        proto.String(name),
-			MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", g.Zone,machineType)),
+			MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", g.Zone, machineType)),
 			NetworkInterfaces: []*computepb.NetworkInterface{
 				{
 					Name: proto.String("global/networks/default"),
@@ -91,7 +96,7 @@ func (g *GcpApi) Insert(name,machineType,imageType string) error {
 				{
 					InitializeParams: &computepb.AttachedDiskInitializeParams{
 						SourceImage: proto.String(imageType),
-						DiskSizeGb:  proto.Int64(20),
+						DiskSizeGb:  proto.Int64(10),
 					},
 					AutoDelete: proto.Bool(true),
 					Boot:       proto.Bool(true),
@@ -100,22 +105,24 @@ func (g *GcpApi) Insert(name,machineType,imageType string) error {
 			},
 		},
 	}
-	opt, err := g.client.Insert(context.Background(), req)
+	opt, err := g.client.Insert(ctx, req)
 	if err != nil {
 		return err
 	}
-	return opt.Wait(context.Background())
+	return opt.Wait(ctx)
 }
 
 func (g *GcpApi) Delete(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 	req := &computepb.DeleteInstanceRequest{
 		Project:  g.ProjectId,
 		Zone:     g.Zone,
 		Instance: name,
 	}
-	opt, err := g.client.Delete(context.Background(), req)
+	opt, err := g.client.Delete(ctx, req)
 	if err != nil {
 		return err
 	}
-	return opt.Wait(context.Background())
+	return opt.Wait(ctx)
 }
