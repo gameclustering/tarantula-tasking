@@ -6,6 +6,12 @@ import (
 	"os"
 )
 
+// PromotionSpec describes how to mark a successful test run in the app repo.
+type PromotionSpec struct {
+	Repo       string `json:"repo"`       // repo name to tag (e.g., "tarantula-sample-app")
+	TagPattern string `json:"tagPattern"` // sprintf pattern with env, e.g., "%s-ready"
+}
+
 // CredentialField is a single field in a credential spec: either a static value or a generated password.
 type CredentialField struct {
 	Value    string `json:"value"`
@@ -32,6 +38,9 @@ type PhaseConfig struct {
 	Services       []GcpServiceConfig `json:"services"`   // fields are platform-agnostic
 	Settings       map[string]string  `json:"settings"`   // platform-specific key-value pairs
 	Credentials    *CredentialSpec    `json:"credentials"` // auto-seed service credentials into Vault on first deploy
+	TestRepo       string             `json:"testRepo"`   // test phase: repo containing k6 scripts
+	AppPrefix      string             `json:"appPrefix"`  // test phase: prefix of app instances to test against
+	Promotion      *PromotionSpec     `json:"promotion"`  // test phase: git tag to push on test pass
 }
 
 type DeployEnvConfig struct {
@@ -112,6 +121,15 @@ func mergePhase(primary, fallback PhaseConfig) PhaseConfig {
 	}
 	if primary.Credentials == nil {
 		primary.Credentials = fallback.Credentials
+	}
+	if primary.TestRepo == "" {
+		primary.TestRepo = fallback.TestRepo
+	}
+	if primary.AppPrefix == "" {
+		primary.AppPrefix = fallback.AppPrefix
+	}
+	if primary.Promotion == nil {
+		primary.Promotion = fallback.Promotion
 	}
 	if primary.Settings == nil {
 		primary.Settings = make(map[string]string)

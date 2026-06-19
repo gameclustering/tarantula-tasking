@@ -43,6 +43,7 @@ func (s *GoogleCloudService) Start(f core.Env) error {
 	s.Cluster().Register("update_gcp", cloud.NewUpdate(&s.AppManager, store, "gcp", newGcpPlatform))
 	s.Cluster().Register("build_gcp",  cloud.NewBuild(&s.AppManager, store, "gcp", newGcpPlatform))
 	s.Cluster().Register("deploy_gcp", cloud.NewDeploy(&s.AppManager, store, "gcp", newGcpPlatform))
+	s.Cluster().Register("test_gcp",   cloud.NewTest(&s.AppManager, store, "gcp", newGcpPlatform))
 
 	http.Handle("/cloud/meta/task/{taskId}", bootstrap.Logging(&cloudMetaGet{GoogleCloudService: s, store: store}))
 
@@ -56,6 +57,7 @@ func (s *GoogleCloudService) Shutdown() {
 	s.Cluster().Unregister("update_gcp")
 	s.Cluster().Unregister("build_gcp")
 	s.Cluster().Unregister("deploy_gcp")
+	s.Cluster().Unregister("test_gcp")
 	s.Cluster().Unsubscribe(event.MESSAGE_TOPIC_NAME)
 	time.Sleep(1 * time.Second)
 	s.AppManager.Shutdown()
