@@ -71,6 +71,10 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 	jb4.Transaction().Meta(&protocol.Meta{Name: "deploy_" + p}).Message(msg).Build()
 	jb4.Build()
 
+	jb5 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "test"})
+	jb5.Transaction().Meta(&protocol.Meta{Name: "test_" + p}).Message(msg).Build()
+	jb5.Build()
+
 	rp, err := s.Cluster().Issue(tb.Build())
 	if err != nil {
 		core.AppLog.Debug().Msgf("cluster create task error: %s", err.Error())
