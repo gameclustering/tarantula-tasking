@@ -21,6 +21,7 @@ func (c *DataServiceProvider) runAskReserve(t *protocol.Transaction) (*protocol.
 		c.DRequest <- TopicRequest{Opt: TASK_ASSIGN, Subs: rq, Tag: t.Meta.Tag, Name: t.Meta.Name}
 		subs := <-rq
 		close(rq)
+		dispatched := false
 		for _, sub := range subs {
 			conn, err := sub.CPool.Conn()
 			if err != nil {
@@ -31,11 +32,13 @@ func (c *DataServiceProvider) runAskReserve(t *protocol.Transaction) (*protocol.
 			dsp := protocol.NewTransactionServiceClient(conn.Conn)
 			resp, err := dsp.AskReserve(context.Background(), t)
 			if err != nil {
-				core.AppLog.Warn().Msgf("runAskReserve AskReserve failed txn=%d endpoint=%s err=%s", t.Meta.Id, sub.Endpoint, err.Error())
+				core.AppLog.Warn().Msgf("runAskReserve AskReserve failed txn=%d endpoint=%s err=%s, retrying next subscriber", t.Meta.Id, sub.Endpoint, err.Error())
+				dispatched = true
+				break // try next round-robin subscriber immediately, without sleeping
 			}
 			return resp, err
 		}
-		if attempt+1 < reserveRetryMax {
+		if !dispatched && attempt+1 < reserveRetryMax {
 			core.AppLog.Warn().Msgf("no subscription available for reserve %v, retry %d/%d in %s", t.Meta, attempt+1, reserveRetryMax, reserveRetryInterval)
 			time.Sleep(reserveRetryInterval)
 		}
