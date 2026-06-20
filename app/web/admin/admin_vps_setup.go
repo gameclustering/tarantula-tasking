@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/util"
@@ -94,7 +96,9 @@ func (s *AdminVpsSetup) Request(rs core.OnSession, w http.ResponseWriter, r *htt
 	var buf bytes.Buffer
 	for _, cmd := range cmds {
 		buf.Reset()
-		if err := sc.Run(cmd, &buf); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := sc.Run(ctx, cmd, &buf); err != nil {
 			w.Write(util.ToJson(core.OnSession{
 				Successful: false,
 				Message:    fmt.Sprintf("setup failed: %s — %s", err.Error(), strings.TrimSpace(buf.String())),
