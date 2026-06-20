@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -39,9 +40,10 @@ type DataServiceProvider struct {
 	seq         core.Sequence
 	auth        core.Authenticator
 	//write worker chan
-	DSet  chan SetData
-	DWait sync.WaitGroup
-	running bool
+	DSet     chan SetData
+	DWait    sync.WaitGroup
+	running  bool
+	shutdown chan struct{}
 
 	//topic message
 	DMessager     chan *protocol.Mail
@@ -129,12 +131,17 @@ func (c *DataServiceProvider) Pull(request *protocol.Request, stream grpc.Server
 }
 
 func (c *DataServiceProvider) Send(ctx context.Context, in *protocol.Topic) (*protocol.Response, error) {
-	c.DMessager <- &protocol.Mail{Topic: in, Opt: core.TOPIC_MAIL}
+	select {
+	case c.DMessager <- &protocol.Mail{Topic: in, Opt: core.TOPIC_MAIL}:
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
+	}
 	return &protocol.Response{Successful: true, Message: "event published"}, nil
 }
 
 func (c *DataServiceProvider) Start(dir string, ctx string) {
 	c.running = true
+	c.shutdown = make(chan struct{})
 	c.backRing = NodeRing{nodes: make([]core.Node, 0)}
 	path := fmt.Sprintf("%s/%s", dir, "store")
 	core.AppLog.Warn().Msgf("creating path %s if not existed", path)
@@ -158,7 +165,16 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	for n := range SET_OPERATOR_NUM {
 		go c.runSetData(n)
 	}
-	c.TManager = &TaskManager{trs: make(map[uint64]*TaskResource), tjs: make(map[uint64]*JobResource), tms: make(map[uint64]*Timeout), s: c}
+	c.TManager = &TaskManager{
+		trs:        make(map[uint64]*TaskResource),
+		tjs:        make(map[uint64]*JobResource),
+		tms:        make(map[uint64]*Timeout),
+		s:          c,
+		tasks:      make(chan *protocol.Task, 10),
+		updates:    make(chan *protocol.Meta, 10),
+		jobs:       make(chan *protocol.Job, 10),
+		recoveries: make(chan uint64, 10),
+	}
 	go c.TManager.Wait()
 	tcp, err := net.Listen("tcp", fmt.Sprintf(":%d", core.RPC_PORT))
 	if err != nil {

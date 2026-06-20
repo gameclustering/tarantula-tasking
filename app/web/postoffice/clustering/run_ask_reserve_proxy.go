@@ -30,7 +30,9 @@ func (c *DataServiceProvider) runAskReserve(t *protocol.Transaction) (*protocol.
 			}
 			core.AppLog.Info().Msgf("runAskReserve dispatching txn=%d name=%s to=%s", t.Meta.Id, t.Meta.Name, sub.Endpoint)
 			dsp := protocol.NewTransactionServiceClient(conn.Conn)
-			resp, err := dsp.AskReserve(context.Background(), t)
+			ctx, cancel := context.WithTimeout(context.Background(), CLIENT_TIMEOUT)
+			resp, err := dsp.AskReserve(ctx, t)
+			cancel()
 			if err != nil {
 				core.AppLog.Warn().Msgf("runAskReserve AskReserve failed txn=%d endpoint=%s err=%s, retrying next subscriber", t.Meta.Id, sub.Endpoint, err.Error())
 				dispatched = true

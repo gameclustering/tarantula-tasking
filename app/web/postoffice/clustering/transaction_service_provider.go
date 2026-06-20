@@ -6,6 +6,7 @@ import (
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/persistence"
 	"gameclustering.com/internal/protocol"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -25,13 +26,21 @@ func (c *DataServiceProvider) Setup(ctx context.Context, task *protocol.Task) (*
 func (c *DataServiceProvider) AskReserve(ctx context.Context, in *protocol.Transaction) (*protocol.Response, error) {
 	in.Meta.State = protocol.TCC_RESERVING
 	//down streaming to app
-	c.DMessager <- &protocol.Mail{Transaction: in, Opt: core.TRANS_MAIL}
+	select {
+	case c.DMessager <- &protocol.Mail{Transaction: in, Opt: core.TRANS_MAIL}:
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
+	}
 	return &protocol.Response{Successful: true, Meta: &protocol.Meta{Name: in.Meta.Name}}, nil
 }
 
 func (c *DataServiceProvider) AskFinish(ctx context.Context, in *protocol.Meta) (*protocol.Response, error) {
 	//down streaming to app meta state could be canceled or confirmed
-	c.DMessager <- &protocol.Mail{Transaction: &protocol.Transaction{Meta: in}, Opt: core.TRANS_MAIL}
+	select {
+	case c.DMessager <- &protocol.Mail{Transaction: &protocol.Transaction{Meta: in}, Opt: core.TRANS_MAIL}:
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
+	}
 	return &protocol.Response{Successful: true, Meta: &protocol.Meta{Name: in.Name}}, nil
 }
 

@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -93,7 +94,7 @@ func (h *buildHandler) reserve(t *protocol.Transaction) error {
 	}
 
 	if err := h.buildOnHost(buildIP, sshKey, sshUser, gitKey, &plan, dockerKey.Docker, deployPhase.Services); err != nil {
-		core.AppLog.Warn().Msgf("build on host %s: %s", buildIP, err.Error())
+		return fmt.Errorf("build [%s]: %w", planName, err)
 	}
 	return h.store.Insert(t.Meta)
 }
@@ -120,8 +121,10 @@ func (h *buildHandler) buildOnHost(host, sshKey, sshUser string, gitKey *protoco
 	var out bytes.Buffer
 	loginCmd := fmt.Sprintf("printf '%%s' '%s' | docker login %s -u %s --password-stdin", cred, docker.Server, docker.Username)
 	out.Reset()
-	if err := ssh.Run(loginCmd, &out); err != nil {
-		return fmt.Errorf("docker login: %w — %s", err, out.String())
+	ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel2m()
+	if err := ssh.Run(ctx2m, loginCmd, &out); err != nil {
+		return fmt.Errorf("docker login failed (credentials redacted): %w", err)
 	}
 
 	// Service task: build from deploy repo using docker_application_build
@@ -153,7 +156,10 @@ func (h *buildHandler) buildService(ssh util.SshClient, host string, gitKey *pro
 	}
 	for _, cmd := range setupCmds {
 		out.Reset()
-		if err := ssh.Run(cmd, out); err != nil {
+		ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+		err := ssh.Run(ctx2m, cmd, out)
+		cancel2m()
+		if err != nil {
 			return fmt.Errorf("cmd %q: %w — %s", cmd, err, out.String())
 		}
 		core.AppLog.Debug().Msgf("build [%s]: %s", host, strings.TrimSpace(out.String()))
@@ -171,7 +177,10 @@ func (h *buildHandler) buildService(ssh util.SshClient, host string, gitKey *pro
 		}
 		for _, cmd := range cmds {
 			out.Reset()
-			if err := ssh.Run(cmd, out); err != nil {
+			ctx10m, cancel10m := context.WithTimeout(context.Background(), 10*time.Minute)
+			err := ssh.Run(ctx10m, cmd, out)
+			cancel10m()
+			if err != nil {
 				return fmt.Errorf("build [%s/%s] %q: %w — %s", host, svc.Name, cmd, err, out.String())
 			}
 			core.AppLog.Debug().Msgf("build [%s/%s]: %s", host, svc.Name, strings.TrimSpace(out.String()))
@@ -199,7 +208,10 @@ func (h *buildHandler) buildApp(ssh util.SshClient, host, org string, repo *prot
 	}
 	for _, cmd := range setupCmds {
 		out.Reset()
-		if err := ssh.Run(cmd, out); err != nil {
+		ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+		err := ssh.Run(ctx2m, cmd, out)
+		cancel2m()
+		if err != nil {
 			return fmt.Errorf("cmd %q: %w — %s", cmd, err, out.String())
 		}
 		core.AppLog.Debug().Msgf("build [%s]: %s", host, strings.TrimSpace(out.String()))
@@ -212,7 +224,10 @@ func (h *buildHandler) buildApp(ssh util.SshClient, host, org string, repo *prot
 			fmt.Sprintf("docker push %s", image),
 		} {
 			out.Reset()
-			if err := ssh.Run(cmd, out); err != nil {
+			ctx10m, cancel10m := context.WithTimeout(context.Background(), 10*time.Minute)
+			err := ssh.Run(ctx10m, cmd, out)
+			cancel10m()
+			if err != nil {
 				return fmt.Errorf("cmd %q: %w — %s", cmd, err, out.String())
 			}
 			core.AppLog.Debug().Msgf("build [%s]: %s", host, strings.TrimSpace(out.String()))
@@ -233,7 +248,10 @@ func (h *buildHandler) buildApp(ssh util.SshClient, host, org string, repo *prot
 		}
 		for _, cmd := range cmds {
 			out.Reset()
-			if err := ssh.Run(cmd, out); err != nil {
+			ctx10m, cancel10m := context.WithTimeout(context.Background(), 10*time.Minute)
+			err := ssh.Run(ctx10m, cmd, out)
+			cancel10m()
+			if err != nil {
 				return fmt.Errorf("build [%s/%s] %q: %w — %s", host, svc.Name, cmd, err, out.String())
 			}
 			core.AppLog.Debug().Msgf("build [%s/%s]: %s", host, svc.Name, strings.TrimSpace(out.String()))

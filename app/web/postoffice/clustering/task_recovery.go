@@ -13,7 +13,11 @@ const taskRecoveryDelay = 30 * time.Second
 
 func (c *DataServiceProvider) recoverTasks() {
 	core.AppLog.Info().Msgf("recoverTasks: waiting %s for ring to stabilize", taskRecoveryDelay)
-	time.Sleep(taskRecoveryDelay)
+	select {
+	case <-time.After(taskRecoveryDelay):
+	case <-c.shutdown:
+		return
+	}
 
 	taskIds := c.scanLocalTaskIds()
 	core.AppLog.Info().Msgf("recoverTasks: found %d task(s) in local store", len(taskIds))

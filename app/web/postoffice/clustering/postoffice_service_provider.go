@@ -4,12 +4,14 @@ import (
 	context "context"
 	"fmt"
 	"strings"
+	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/persistence"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
 )
 
 func (c *DataServiceProvider) AuthKey(ctx context.Context, request *protocol.Request) (*protocol.AuthKey, error) {
@@ -49,13 +51,21 @@ func (c *DataServiceProvider) KeyRing(ctx context.Context, request *protocol.Req
 }
 
 func (c *DataServiceProvider) Receive(topic *protocol.Topic, stream grpc.ServerStreamingServer[protocol.Mail]) error {
+	ctx := stream.Context()
 	aq := make(chan ReceiverAsync, 2)
-	c.DRequest <- TopicRequest{Opt: RECEIVER_START, Name: topic.NodeId, Async: aq}
-	ch := <-aq
+	select {
+	case c.DRequest <- TopicRequest{Opt: RECEIVER_START, Name: topic.NodeId, Async: aq}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	var ch ReceiverAsync
+	select {
+	case ch = <-aq:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	close(aq)
 	core.AppLog.Info().Msgf("start event receiver on [%s]", topic.NodeId)
-	defer close(ch.Rev)
-	defer close(ch.Q)
 	receiving := true
 	for receiving {
 		select {
@@ -67,11 +77,23 @@ func (c *DataServiceProvider) Receive(topic *protocol.Topic, stream grpc.ServerS
 				core.AppLog.Debug().Msgf("send error %s", err.Error())
 				receiving = false
 			}
+		case <-ctx.Done():
+			receiving = false
 		}
 	}
-	c.DRequest <- TopicRequest{Opt: RECEIVER_REMOVE, Name: topic.NodeId, QChan: ch.Q}
+	ctx5, cancel5 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel5()
+	select {
+	case c.DRequest <- TopicRequest{Opt: RECEIVER_REMOVE, Name: topic.NodeId, QChan: ch.Q}:
+	case <-ctx5.Done():
+	}
 	core.AppLog.Debug().Msgf("stop evnt receiver from on [%s]", topic.NodeId)
-	c.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: core.Subscription{NodeId: topic.NodeId, Deleting: true}}}
+	ctx5b, cancel5b := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel5b()
+	select {
+	case c.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: core.Subscription{NodeId: topic.NodeId, Deleting: true}}}:
+	case <-ctx5b.Done():
+	}
 	return nil
 }
 func (c *DataServiceProvider) Disconnect(ctx context.Context, topic *protocol.Topic) (*protocol.Response, error) {
@@ -195,8 +217,17 @@ func (c *DataServiceProvider) Finish(ctx context.Context, meta *protocol.Meta) (
 func (c *DataServiceProvider) TopicList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	rq := make(chan []core.Subscription, 3)
 	defer close(rq)
-	c.DRequest <- TopicRequest{Opt: TOPIC_LIST, Subs: rq}
-	subs := <-rq
+	select {
+	case c.DRequest <- TopicRequest{Opt: TOPIC_LIST, Subs: rq}:
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
+	}
+	var subs []core.Subscription
+	select {
+	case subs = <-rq:
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
+	}
 	tps := make([]*protocol.Subscription, 0)
 	for _, sub := range subs {
 		tps = append(tps, &protocol.Subscription{NodeId: sub.NodeId, Tag: sub.Tag, Name: sub.Topic, Endpoint: sub.Endpoint})
@@ -207,8 +238,17 @@ func (c *DataServiceProvider) TopicList(ctx context.Context, req *protocol.Reque
 func (c *DataServiceProvider) TaskList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	rq := make(chan []core.Subscription, 3)
 	defer close(rq)
-	c.DRequest <- TopicRequest{Opt: TASK_LIST, Subs: rq}
-	subs := <-rq
+	select {
+	case c.DRequest <- TopicRequest{Opt: TASK_LIST, Subs: rq}:
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
+	}
+	var subs []core.Subscription
+	select {
+	case subs = <-rq:
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
+	}
 	tks := make([]*protocol.Subscription, 0)
 	for _, sub := range subs {
 		tks = append(tks, &protocol.Subscription{NodeId: sub.NodeId, Tag: sub.Tag, Name: sub.Topic, Endpoint: sub.Endpoint})
