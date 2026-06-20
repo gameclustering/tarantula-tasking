@@ -144,7 +144,8 @@ func (m *DataServiceProvider) RingUpdated() {
 		case <-subSync.C:
 			m.subscriptions.lookup(func(sub core.Subscription) {
 				if sub.Endpoint == m.rpcEndpoint {
-					m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
+					req := core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
+					go func() { m.Mll.MRequest <- req }()
 				}
 			})
 		case ringUpdate := <-m.RNode:
@@ -152,7 +153,7 @@ func (m *DataServiceProvider) RingUpdated() {
 			case NODE_STATE_SHUTDOWN:
 				running = false
 			case NODE_STATE_LIVE:
-				m.balanceOnNodeAdded(ringUpdate)
+				go m.balanceOnNodeAdded(ringUpdate)
 			case NODE_STATE_DEAD:
 				m.balanceOnNodeRemoved(ringUpdate)
 			}
@@ -267,6 +268,8 @@ func (m *DataServiceProvider) RingUpdated() {
 
 	}
 	//shutdown server
+	m.running = false
+	close(m.shutdown)
 	for range SET_OPERATOR_NUM {
 		m.DSet <- SetData{Opt: core.SET_OPT_CLOSE}
 	}

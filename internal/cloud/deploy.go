@@ -2,9 +2,11 @@ package cloud
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"fmt"
 	"strings"
+	"time"
 
 	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
@@ -95,6 +97,8 @@ func (h *deployHandler) reserve(t *protocol.Transaction) error {
 	}
 
 	var firstNodeIP string
+	var firstErr error
+	failCount := 0
 	for i := 1; i <= deployPhase.InstanceNumber; i++ {
 		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
 		clusterBootstrap := ""
@@ -103,10 +107,17 @@ func (h *deployHandler) reserve(t *protocol.Transaction) error {
 		}
 		ip, err := h.deployOnInstance(platform, name, sshUser, i, ref, deployPhase.Services, deployPhase.Ports, plan.AppRepo, dockerKey.Docker, vaultHost, vaultToken, clusterBootstrap)
 		if err != nil {
-			core.AppLog.Warn().Msgf("deploy on instance %s: %s", name, err.Error())
+			core.AppLog.Warn().Msgf("deploy [%s]: instance %s: %s", planName, name, err.Error())
+			if firstErr == nil {
+				firstErr = err
+			}
+			failCount++
 		} else if firstNodeIP == "" {
 			firstNodeIP = ip
 		}
+	}
+	if failCount == deployPhase.InstanceNumber {
+		return fmt.Errorf("deploy [%s]: all %d instances failed: %w", planName, failCount, firstErr)
 	}
 	return h.store.Insert(t.Meta)
 }
@@ -129,8 +140,10 @@ func (h *deployHandler) deployOnInstance(platform InstancePlatform, name, sshUse
 	var out bytes.Buffer
 	loginCmd := fmt.Sprintf("printf '%%s' '%s' | docker login %s -u %s --password-stdin", cred, docker.Server, docker.Username)
 	out.Reset()
-	if err := ssh.Run(loginCmd, &out); err != nil {
-		return "", fmt.Errorf("docker login: %w — %s", err, out.String())
+	ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel2m()
+	if err := ssh.Run(ctx2m, loginCmd, &out); err != nil {
+		return "", fmt.Errorf("docker login failed (credentials redacted): %w", err)
 	}
 	core.AppLog.Debug().Msgf("deploy [%s]: docker login OK", name)
 
@@ -186,7 +199,10 @@ func (h *deployHandler) runContainer(ssh util.SshClient, instanceName, svcName, 
 	}
 	for _, cmd := range cmds {
 		out.Reset()
-		if err := ssh.Run(cmd, out); err != nil {
+		ctx10m, cancel10m := context.WithTimeout(context.Background(), 10*time.Minute)
+		err := ssh.Run(ctx10m, cmd, out)
+		cancel10m()
+		if err != nil {
 			return fmt.Errorf("deploy [%s/%s] %q: %w — %s", instanceName, svcName, cmd, err, out.String())
 		}
 		core.AppLog.Debug().Msgf("deploy [%s/%s]: %s", instanceName, svcName, strings.TrimSpace(out.String()))

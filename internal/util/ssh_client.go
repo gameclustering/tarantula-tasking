@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/skeema/knownhosts"
@@ -30,6 +31,7 @@ func (c *SshClient) WithPassword() error {
 			ssh.Password(c.Password),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         15 * time.Second,
 	}
 	ci, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", c.Host, 22), &conf)
 	if err != nil {
@@ -77,6 +79,7 @@ func (c *SshClient) WithKey() error {
 			ssh.PublicKeys(signer),
 		},
 		HostKeyCallback: cb,
+		Timeout:         15 * time.Second,
 	}
 	ci, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", c.Host, 22), &conf)
 	if err != nil {
@@ -121,7 +124,7 @@ func (c *SshClient) Close() error {
 	return c.conn.Close()
 }
 
-func (c *SshClient) Run(cmd string, w io.Writer) error {
+func (c *SshClient) Run(ctx context.Context, cmd string, w io.Writer) error {
 	session, err := c.conn.NewSession()
 	if err != nil {
 		return err
@@ -129,27 +132,31 @@ func (c *SshClient) Run(cmd string, w io.Writer) error {
 	defer session.Close()
 	session.Stdout = w
 	session.Stderr = w
-	err = session.Run(cmd)
-	if err != nil {
+	if err := session.Start(cmd); err != nil {
 		return err
 	}
-	return nil
+	go func() {
+		<-ctx.Done()
+		_ = session.Signal(ssh.SIGKILL)
+		session.Close()
+	}()
+	return session.Wait()
 }
 
-func (c *SshClient) Upload(f *os.File, p string, m string) error {
+func (c *SshClient) Upload(ctx context.Context, f *os.File, p string, m string) error {
 	cp, err := scp.NewClientBySSH(c.conn)
 	if err != nil {
 		return err
 	}
 	defer cp.Close()
-	return cp.CopyFromFile(context.Background(), *f, p, m)
+	return cp.CopyFromFile(ctx, *f, p, m)
 }
 
-func (c *SshClient) Download(f *os.File, p string, m string) error {
+func (c *SshClient) Download(ctx context.Context, f *os.File, p string, m string) error {
 	cp, err := scp.NewClientBySSH(c.conn)
 	if err != nil {
 		return err
 	}
 	defer cp.Close()
-	return cp.CopyFromRemote(context.Background(), f, p)
+	return cp.CopyFromRemote(ctx, f, p)
 }
