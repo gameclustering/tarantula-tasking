@@ -141,8 +141,14 @@ func (h *testHandler) reserve(t *protocol.Transaction) error {
 		}
 	}
 
+	// Compute the promotion tag now so we can pass it to entrypoint as APP_TAG
+	reportTag := plan.Env
+	if p := testPhase.Promotion; p != nil && p.TagPattern != "" {
+		reportTag = fmt.Sprintf(p.TagPattern, plan.Env)
+	}
+
 	out.Reset()
-	if err := ssh.Run(fmt.Sprintf("BASE_URL='%s' bash tests/entrypoint.sh 2>&1", baseURL), &out); err != nil {
+	if err := ssh.Run(fmt.Sprintf("BASE_URL='%s' APP_TAG='%s' bash tests/entrypoint.sh 2>&1", baseURL, reportTag), &out); err != nil {
 		core.AppLog.Warn().Msgf("test [%s]: entrypoint failed: %s\n%s", testName, err, strings.TrimSpace(out.String()))
 		return fmt.Errorf("tests failed: %w — %s", err, strings.TrimSpace(out.String()))
 	}
