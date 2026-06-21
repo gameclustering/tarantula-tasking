@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"gameclustering.com/internal/core"
@@ -159,6 +160,10 @@ func (c *AppManager) WriteLevel(level zerolog.Level, data []byte) (int, error) {
 }
 
 func (c *AppManager) Run(e *zerolog.Event, level zerolog.Level, msg string) {
+	if strings.Contains(msg, "[DEBUG] memberlist:") {
+		e.Discard()
+		return
+	}
 	_, f, line, ok := runtime.Caller(3)
 	if !ok {
 		e.Str("source", "unknown")
