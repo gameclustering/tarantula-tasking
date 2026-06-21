@@ -45,7 +45,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.MConflict = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
 	rwNode := make(chan RingUpdate, NODE_EVENT_BUFFER_SIZE)
-	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE)
+	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
 	m.WNode = rwNode
 	m.MSync = rwSync
 	cfg.Events = &cl

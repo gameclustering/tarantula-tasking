@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"slices"
 	"strings"
 	"time"
@@ -147,16 +148,27 @@ func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
 
 func (m *DataServiceProvider) RingUpdated() {
 	running := true
-	subSync := time.NewTicker(60 * time.Second)
+	// Random first-tick (1-60s) spreads cluster subSync across the full window,
+	// preventing thundering herd when all nodes start within seconds of each other.
+	subSync := time.NewTicker(time.Duration(1+rand.Int63n(60)) * time.Second)
+	firstSubSyncTick := true
 	defer subSync.Stop()
 	for running {
 		select {
 		case <-subSync.C:
-			m.subscriptions.lookup(func(sub core.Subscription) {
-				if sub.Endpoint == m.rpcEndpoint {
-					m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
-				}
-			})
+			if firstSubSyncTick {
+				firstSubSyncTick = false
+				subSync.Reset(60 * time.Second)
+			}
+			// Run in goroutine so RingUpdated is not blocked during the sends;
+			// each send to MRequest is bounded by Listen()'s processing of one SYNC_SUB_OPT.
+			go func() {
+				m.subscriptions.lookup(func(sub core.Subscription) {
+					if sub.Endpoint == m.rpcEndpoint {
+						m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
+					}
+				})
+			}()
 		case ringUpdate := <-m.RNode:
 			switch ringUpdate.State {
 			case NODE_STATE_SHUTDOWN:
