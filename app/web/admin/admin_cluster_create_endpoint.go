@@ -60,9 +60,21 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 
 	steps := cfg.ResolveSteps(plan.Env)
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
+	testPhase := cfg.Resolve(plan.Env, "test")
 	instanceCount := deployPhase.InstanceNumber
 	if instanceCount < 1 {
 		instanceCount = 1
+	}
+	// Drop the test step when neither the deploy config nor the plan provides
+	// a test repo and prefix — mirrors the skip logic in test.go at runtime.
+	if testPhase.TestRepo == "" || testPhase.Prefix == "" {
+		filtered := steps[:0]
+		for _, s := range steps {
+			if s != "test" {
+				filtered = append(filtered, s)
+			}
+		}
+		steps = filtered
 	}
 
 	p := plan.Platform
