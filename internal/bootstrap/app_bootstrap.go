@@ -31,7 +31,6 @@ func AppBootstrap(tcx TarantulaContext) {
 	Register(event.TASK_TOPIC_NAME, func() core.QueryFactory { return event.NewTaskEventFactory() })
 	Register(event.TRANSACTION_TOPIC_NAME, func() core.QueryFactory { return event.NewTransactionEventFactory() })
 	Register(persistence.LOGIN_OBJECT_FACTORY_NAME, func() core.QueryFactory { return persistence.NewLoginObjectFactory() })
-	Register(persistence.VM_OBJECT_FACTORY_NAME, func() core.QueryFactory { return persistence.NewVMObjectFactory() })
 	Register(persistence.REPOSITORY_OBJECT_FACTORY_NAME, func() core.QueryFactory { return persistence.NewRepositoryObjectFactory() })
 
 	f := core.Env{}

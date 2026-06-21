@@ -96,28 +96,17 @@ func (h *deployHandler) reserve(t *protocol.Transaction) error {
 		}
 	}
 
-	var firstNodeIP string
-	var firstErr error
-	failCount := 0
-	for i := 1; i <= deployPhase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
-		clusterBootstrap := ""
-		if i > 1 && firstNodeIP != "" {
-			clusterBootstrap = fmt.Sprintf("http://%s:8080", firstNodeIP)
-		}
-		ip, err := h.deployOnInstance(platform, name, sshUser, i, ref, deployPhase.Services, deployPhase.Ports, plan.AppRepo, dockerKey.Docker, vaultHost, vaultToken, clusterBootstrap)
-		if err != nil {
-			core.AppLog.Warn().Msgf("deploy [%s]: instance %s: %s", planName, name, err.Error())
-			if firstErr == nil {
-				firstErr = err
-			}
-			failCount++
-		} else if firstNodeIP == "" {
-			firstNodeIP = ip
-		}
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
 	}
-	if failCount == deployPhase.InstanceNumber {
-		return fmt.Errorf("deploy [%s]: all %d instances failed: %w", planName, failCount, firstErr)
+	name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, seq)
+	// clusterBootstrap may be pre-configured in deploy.json settings (e.g. balancer URL or fixed seed IP).
+	// With fan-out, seq>1 nodes discover peers via the seeds endpoint instead of relying on seq=1's runtime IP.
+	clusterBootstrap := deployPhase.Settings["clusterBootstrap"]
+	_, err = h.deployOnInstance(platform, name, sshUser, seq, ref, deployPhase.Services, deployPhase.Ports, plan.AppRepo, dockerKey.Docker, vaultHost, vaultToken, clusterBootstrap)
+	if err != nil {
+		return fmt.Errorf("deploy [%s]: instance %s: %w", planName, name, err)
 	}
 	return h.store.Insert(t.Meta)
 }

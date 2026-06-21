@@ -56,13 +56,15 @@ func (h *createHandler) reserve(t *protocol.Transaction) error {
 	}
 	defer platform.Close()
 
-	for i := 1; i <= deployPhase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
-		if err := platform.Provision(name); err != nil {
-			return fmt.Errorf("provision %s: %w", name, err)
-		}
-		core.AppLog.Info().Msgf("create: instance %s provisioned", name)
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
 	}
+	name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, seq)
+	if err := platform.Provision(name); err != nil {
+		return fmt.Errorf("provision %s: %w", name, err)
+	}
+	core.AppLog.Info().Msgf("create: instance %s provisioned", name)
 	return h.store.Insert(t.Meta)
 }
 
@@ -105,11 +107,13 @@ func (h *createHandler) cancel(t *protocol.Transaction) error {
 	}
 	defer platform.Close()
 
-	for i := 1; i <= deployPhase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
-		if err := platform.Remove(name); err != nil {
-			core.AppLog.Warn().Msgf("cancel: remove %s: %s", name, err)
-		}
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
+	}
+	name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, seq)
+	if err := platform.Remove(name); err != nil {
+		core.AppLog.Warn().Msgf("cancel: remove %s: %s", name, err)
 	}
 	return h.store.Insert(t.Meta)
 }
