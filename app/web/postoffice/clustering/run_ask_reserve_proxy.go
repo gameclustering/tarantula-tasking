@@ -38,6 +38,7 @@ func (c *DataServiceProvider) runAskReserve(t *protocol.Transaction) (*protocol.
 				dispatched = true
 				break // try next round-robin subscriber immediately, without sleeping
 			}
+			t.Meta.NodeId = sub.NodeId // track confirming subscriber so AskFinish routes here
 			return resp, err
 		}
 		if !dispatched && attempt+1 < reserveRetryMax {

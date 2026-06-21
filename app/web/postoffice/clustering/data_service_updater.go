@@ -224,7 +224,13 @@ func (m *DataServiceProvider) RingUpdated() {
 				req.Subs <- m.subscriptions.topic(req)
 			case TASK_ASSIGN:
 				name := fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, req.Name)
-				sub := m.subscriptions.pick(name, req.Tag)
+				var sub *core.Subscription
+				if req.NodeId != "" {
+					sub = m.subscriptions.pickByNodeId(name, req.NodeId)
+				}
+				if sub == nil {
+					sub = m.subscriptions.pick(name, req.Tag)
+				}
 				if sub != nil {
 					req.Subs <- []core.Subscription{*sub}
 				} else {
