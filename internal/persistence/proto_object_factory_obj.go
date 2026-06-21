@@ -11,9 +11,6 @@ const (
 	LOGIN_OBJECT_ID           uint32 = 1
 	LOGIN_OBJECT_FACTORY_NAME string = "obj_login"
 
-	VM_OBJECT_ID           uint32 = 2
-	VM_OBJECT_FACTORY_NAME string = "obj_vm"
-
 	REPOSITORY_OBJECT_ID           uint32 = 3
 	REPOSITORY_OBJECT_FACTORY_NAME string = "obj_repository"
 )

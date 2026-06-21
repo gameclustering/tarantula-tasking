@@ -77,11 +77,13 @@ func (h *updateHandler) reserve(t *protocol.Transaction) error {
 		sshUser = platform.SSHUser()
 	}
 
-	for i := 1; i <= deployPhase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
-		if err := h.setupInstance(platform, name, sshUser, keyFile.Name()); err != nil {
-			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
-		}
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
+	}
+	name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, seq)
+	if err := h.setupInstance(platform, name, sshUser, keyFile.Name()); err != nil {
+		core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
 	}
 	return h.store.Insert(t.Meta)
 }
