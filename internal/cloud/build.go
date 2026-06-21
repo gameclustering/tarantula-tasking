@@ -61,36 +61,36 @@ func (h *buildHandler) reserve(t *protocol.Transaction) error {
 		return fmt.Errorf("docker auth key: %w", err)
 	}
 
-	var buildIP, sshKey, sshUser string
-	if buildPhase.BuildHost != "" {
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
+	}
+
+	platform, err := h.factory(buildPhase, platformKey)
+	if err != nil {
+		return fmt.Errorf("platform init: %w", err)
+	}
+	defer platform.Close()
+
+	sshKey := platform.SSHKey()
+	sshUser := buildPhase.SshUser
+	if sshUser == "" {
+		sshUser = platform.SSHUser()
+	}
+
+	var buildIP string
+	switch {
+	case seq <= len(buildPhase.BuildHosts):
+		buildIP = buildPhase.BuildHosts[seq-1]
+	case buildPhase.BuildHost != "":
 		buildIP = buildPhase.BuildHost
-		platform, err := h.factory(buildPhase, platformKey)
-		if err != nil {
-			return fmt.Errorf("platform init: %w", err)
-		}
-		defer platform.Close()
-		sshKey = platform.SSHKey()
-		sshUser = buildPhase.SshUser
-		if sshUser == "" {
-			sshUser = platform.SSHUser()
-		}
-	} else {
-		platform, err := h.factory(buildPhase, platformKey)
-		if err != nil {
-			return fmt.Errorf("platform init: %w", err)
-		}
-		defer platform.Close()
-		name := fmt.Sprintf("%s-%02d", buildPhase.Prefix, 1)
+	default:
+		name := fmt.Sprintf("%s-%02d", buildPhase.Prefix, seq)
 		ip, err := platform.IP(name)
 		if err != nil {
 			return fmt.Errorf("get build instance IP: %w", err)
 		}
 		buildIP = ip
-		sshKey = platform.SSHKey()
-		sshUser = buildPhase.SshUser
-		if sshUser == "" {
-			sshUser = platform.SSHUser()
-		}
 	}
 
 	if err := h.buildOnHost(buildIP, sshKey, sshUser, gitKey, &plan, dockerKey.Docker, deployPhase.Services); err != nil {

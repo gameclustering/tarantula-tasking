@@ -60,13 +60,17 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 
 	steps := cfg.ResolveSteps(plan.Env)
 	deployPhase := cfg.Resolve(plan.Env, "deploy")
+	buildPhase := cfg.Resolve(plan.Env, "build")
 	testPhase := cfg.Resolve(plan.Env, "test")
 	instanceCount := deployPhase.InstanceNumber
 	if instanceCount < 1 {
 		instanceCount = 1
 	}
-	// Drop the test step when neither the deploy config nor the plan provides
-	// a test repo and prefix — mirrors the skip logic in test.go at runtime.
+	buildCount := len(buildPhase.BuildHosts)
+	if buildCount < 1 {
+		buildCount = 1
+	}
+	// Drop the test step when deploy config has no test repo/prefix — mirrors skip logic in test.go.
 	if testPhase.TestRepo == "" || testPhase.Prefix == "" {
 		filtered := steps[:0]
 		for _, s := range steps {
@@ -96,8 +100,11 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 		}
 		jb := tb.Job(meta)
 		if core.ParallelSteps[step] {
-			// Fan-out: one transaction per instance so each subscriber handles exactly one VM.
-			for seq := 1; seq <= instanceCount; seq++ {
+			count := instanceCount
+			if step == "build" {
+				count = buildCount
+			}
+			for seq := 1; seq <= count; seq++ {
 				seqPlan := proto.Clone(&plan).(*protocol.PlanObject)
 				seqPlan.Seq = int32(seq)
 				msg, err := anypb.New(seqPlan)

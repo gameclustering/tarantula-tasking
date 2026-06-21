@@ -32,7 +32,8 @@ type PhaseConfig struct {
 	Prefix         string            `json:"prefix"`
 	InstanceNumber int               `json:"instanceNumber"`
 	SshUser        string            `json:"sshUser"`
-	BuildHost      string            `json:"buildHost"` // pre-existing build server; empty means provision one
+	BuildHost      string            `json:"buildHost"`  // single pre-existing build server; empty means provision one
+	BuildHosts     []string          `json:"buildHosts"` // multiple build servers for fan-out; seq selects index
 	VaultHost      string            `json:"vaultHost"` // public vault URL for deployed containers; overrides worker's VAULT_HOST
 	Description    string            `json:"description"`
 	Services       []GcpServiceConfig `json:"services"`   // fields are platform-agnostic
@@ -47,9 +48,8 @@ type PhaseConfig struct {
 // DefaultSteps is the ordered pipeline used when deploy.json omits "steps".
 var DefaultSteps = []string{"check", "create", "update", "build", "deploy", "test"}
 
-// ParallelSteps are fanned out per instance — one transaction per VM so subscribers work in parallel.
-// Each subscriber handles exactly one instance identified by plan.Seq.
-var ParallelSteps = map[string]bool{"create": true, "update": true, "deploy": true, "test": true}
+// ParallelSteps are fanned out — one transaction per target (VM or build server) identified by plan.Seq.
+var ParallelSteps = map[string]bool{"create": true, "update": true, "build": true, "deploy": true, "test": true}
 
 type DeployEnvConfig struct {
 	Steps  []string    `json:"steps"`
@@ -130,6 +130,9 @@ func mergePhase(primary, fallback PhaseConfig) PhaseConfig {
 	}
 	if primary.BuildHost == "" {
 		primary.BuildHost = fallback.BuildHost
+	}
+	if len(primary.BuildHosts) == 0 {
+		primary.BuildHosts = fallback.BuildHosts
 	}
 	if primary.VaultHost == "" {
 		primary.VaultHost = fallback.VaultHost
