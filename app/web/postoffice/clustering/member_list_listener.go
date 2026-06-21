@@ -135,8 +135,11 @@ func (m *MemberListListener) NodeMeta(limit int) []byte {
 }
 
 func (m *MemberListListener) NotifyMsg(msg []byte) {
-	//app message
-	m.MSync <- msg
+	select {
+	case m.MSync <- msg:
+	default:
+		core.AppLog.Warn().Msgf("NotifyMsg: MSync full, dropping subscription sync message")
+	}
 }
 
 func (m *MemberListListener) GetBroadcasts(overhead, limit int) [][]byte {

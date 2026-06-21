@@ -85,10 +85,20 @@ func (m *DataServiceProvider) balanceOnNodeAdded(added RingUpdate) {
 	if len(ringSync.Ranges) == 0 {
 		return
 	}
-	m.Mll.MRequest <- core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added.Nodes[0].IP}
+	nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added.Nodes[0].IP}
+	select {
+	case m.Mll.MRequest <- nodeReq:
+	default:
+		go func() { m.Mll.MRequest <- nodeReq }()
+	}
 	m.subscriptions.lookup(func(sub core.Subscription) {
 		if sub.Endpoint == m.rpcEndpoint {
-			m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Address: added.Nodes[0].IP, Source: core.RingSync{Sub: sub}}
+			subReq := core.RingRequest{Opt: SYNC_SUB_OPT, Address: added.Nodes[0].IP, Source: core.RingSync{Sub: sub}}
+			select {
+			case m.Mll.MRequest <- subReq:
+			default:
+				go func() { m.Mll.MRequest <- subReq }()
+			}
 		}
 	})
 }
@@ -144,8 +154,7 @@ func (m *DataServiceProvider) RingUpdated() {
 		case <-subSync.C:
 			m.subscriptions.lookup(func(sub core.Subscription) {
 				if sub.Endpoint == m.rpcEndpoint {
-					req := core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
-					go func() { m.Mll.MRequest <- req }()
+					m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
 				}
 			})
 		case ringUpdate := <-m.RNode:
@@ -153,7 +162,7 @@ func (m *DataServiceProvider) RingUpdated() {
 			case NODE_STATE_SHUTDOWN:
 				running = false
 			case NODE_STATE_LIVE:
-				go m.balanceOnNodeAdded(ringUpdate)
+				m.balanceOnNodeAdded(ringUpdate)
 			case NODE_STATE_DEAD:
 				m.balanceOnNodeRemoved(ringUpdate)
 			}
