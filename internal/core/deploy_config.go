@@ -48,8 +48,8 @@ type PhaseConfig struct {
 var DefaultSteps = []string{"check", "create", "update", "build", "deploy", "test"}
 
 // ParallelSteps are fanned out per instance — one transaction per VM so subscribers work in parallel.
-// Single-instance steps (check, build, test) are excluded.
-var ParallelSteps = map[string]bool{"create": true, "update": true, "deploy": true}
+// Each subscriber handles exactly one instance identified by plan.Seq.
+var ParallelSteps = map[string]bool{"create": true, "update": true, "deploy": true, "test": true}
 
 type DeployEnvConfig struct {
 	Steps  []string    `json:"steps"`

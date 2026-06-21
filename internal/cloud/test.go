@@ -67,7 +67,11 @@ func (h *testHandler) reserve(t *protocol.Transaction) error {
 	}
 	defer platform.Close()
 
-	testName := fmt.Sprintf("%s-01", testPhase.Prefix)
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
+	}
+	testName := fmt.Sprintf("%s-%02d", testPhase.Prefix, seq)
 	if err := platform.Provision(testName); err != nil {
 		return fmt.Errorf("provision %s: %w", testName, err)
 	}
@@ -121,7 +125,7 @@ func (h *testHandler) reserve(t *protocol.Transaction) error {
 	if appPrefix == "" {
 		appPrefix = deployPhase.Prefix
 	}
-	appName := fmt.Sprintf("%s-01", appPrefix)
+	appName := fmt.Sprintf("%s-%02d", appPrefix, seq)
 	appIP, err := platform.IP(appName)
 	if err != nil {
 		return fmt.Errorf("app instance IP (%s): %w", appName, err)
@@ -160,12 +164,15 @@ func (h *testHandler) reserve(t *protocol.Transaction) error {
 	}
 	core.AppLog.Info().Msgf("test [%s]: all tests passed", planName)
 
-	if p := testPhase.Promotion; p != nil && p.Repo != "" && p.TagPattern != "" {
-		tag := fmt.Sprintf(p.TagPattern, plan.Env)
-		if err := h.pushTag(ssh, gitKey.Git.Org, p.Repo, tag); err != nil {
-			core.AppLog.Warn().Msgf("test: push promotion tag %s: %s", tag, err)
-		} else {
-			core.AppLog.Info().Msgf("test: pushed promotion tag %s → %s", tag, p.Repo)
+	// Only Seq=1 promotes — prevents N workers racing to push the same git tag.
+	if seq == 1 {
+		if p := testPhase.Promotion; p != nil && p.Repo != "" && p.TagPattern != "" {
+			tag := fmt.Sprintf(p.TagPattern, plan.Env)
+			if err := h.pushTag(ssh, gitKey.Git.Org, p.Repo, tag); err != nil {
+				core.AppLog.Warn().Msgf("test: push promotion tag %s: %s", tag, err)
+			} else {
+				core.AppLog.Info().Msgf("test: pushed promotion tag %s → %s", tag, p.Repo)
+			}
 		}
 	}
 
