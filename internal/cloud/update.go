@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -76,11 +77,13 @@ func (h *updateHandler) reserve(t *protocol.Transaction) error {
 		sshUser = platform.SSHUser()
 	}
 
-	for i := 1; i <= deployPhase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
-		if err := h.setupInstance(platform, name, sshUser, keyFile.Name()); err != nil {
-			core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
-		}
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
+	}
+	name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, seq)
+	if err := h.setupInstance(platform, name, sshUser, keyFile.Name()); err != nil {
+		core.AppLog.Warn().Msgf("setup instance %s: %s", name, err.Error())
 	}
 	return h.store.Insert(t.Meta)
 }
@@ -131,7 +134,10 @@ func (h *updateHandler) installDocker(ssh util.SshClient, user string, name stri
 	}
 	for _, cmd := range cmds {
 		out.Reset()
-		if err := ssh.Run(cmd, &out); err != nil {
+		ctx10m, cancel10m := context.WithTimeout(context.Background(), 10*time.Minute)
+		err := ssh.Run(ctx10m, cmd, &out)
+		cancel10m()
+		if err != nil {
 			return fmt.Errorf("cmd %q: %w — %s", cmd, err, out.String())
 		}
 		core.AppLog.Debug().Msgf("setup [%s]: %s", name, out.String())
@@ -146,7 +152,9 @@ func (h *updateHandler) uploadGitKey(ssh util.SshClient, user string, keyFile st
 	}
 	defer f.Close()
 	remotePath := fmt.Sprintf("/home/%s/.ssh/id_ed25519", user)
-	if err := ssh.Upload(f, remotePath, "0600"); err != nil {
+	ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel2m()
+	if err := ssh.Upload(ctx2m, f, remotePath, "0600"); err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
 	core.AppLog.Info().Msgf("git key uploaded to %s on %s", remotePath, name)

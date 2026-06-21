@@ -7,9 +7,10 @@ import (
 )
 
 type GcpServiceConfig struct {
-	Name        string `json:"name"`
-	Network     string `json:"network"`
-	HttpBinding string `json:"httpBinding"`
+	Name        string   `json:"name"`
+	Network     string   `json:"network"`
+	HttpBinding string   `json:"httpBinding"`
+	Ports       []string `json:"ports"`
 }
 
 type GcpPhaseConfig struct {

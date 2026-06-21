@@ -28,7 +28,9 @@ func (c *DataServiceProvider) runSetup(t *protocol.Task) (*protocol.Response, er
 		return &protocol.Response{Successful: false, Message: err.Error()}, err
 	}
 	dsp := protocol.NewTransactionServiceClient(conn.Conn)
-	resp, err := dsp.Setup(context.Background(), t)
+	ctx, cancel := context.WithTimeout(context.Background(), CLIENT_TIMEOUT)
+	defer cancel()
+	resp, err := dsp.Setup(ctx, t)
 	core.AppLog.Info().Msgf("runSetup remote Setup resp=%v err=%v", resp, err)
 	return resp, err
 }

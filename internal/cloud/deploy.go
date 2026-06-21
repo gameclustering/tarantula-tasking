@@ -2,9 +2,11 @@ package cloud
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"fmt"
 	"strings"
+	"time"
 
 	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
@@ -94,24 +96,22 @@ func (h *deployHandler) reserve(t *protocol.Transaction) error {
 		}
 	}
 
-	var firstNodeIP string
-	for i := 1; i <= deployPhase.InstanceNumber; i++ {
-		name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, i)
-		clusterBootstrap := ""
-		if i > 1 && firstNodeIP != "" {
-			clusterBootstrap = fmt.Sprintf("http://%s:8080", firstNodeIP)
-		}
-		ip, err := h.deployOnInstance(platform, name, sshUser, i, ref, deployPhase.Services, plan.AppRepo, dockerKey.Docker, vaultHost, vaultToken, clusterBootstrap)
-		if err != nil {
-			core.AppLog.Warn().Msgf("deploy on instance %s: %s", name, err.Error())
-		} else if firstNodeIP == "" {
-			firstNodeIP = ip
-		}
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
+	}
+	name := fmt.Sprintf("%s-%02d", deployPhase.Prefix, seq)
+	// clusterBootstrap may be pre-configured in deploy.json settings (e.g. balancer URL or fixed seed IP).
+	// With fan-out, seq>1 nodes discover peers via the seeds endpoint instead of relying on seq=1's runtime IP.
+	clusterBootstrap := deployPhase.Settings["clusterBootstrap"]
+	_, err = h.deployOnInstance(platform, name, sshUser, seq, ref, deployPhase.Services, deployPhase.Ports, plan.AppRepo, dockerKey.Docker, vaultHost, vaultToken, clusterBootstrap)
+	if err != nil {
+		return fmt.Errorf("deploy [%s]: instance %s: %w", planName, name, err)
 	}
 	return h.store.Insert(t.Meta)
 }
 
-func (h *deployHandler) deployOnInstance(platform InstancePlatform, name, sshUser string, seq int, ref string, services []core.GcpServiceConfig, repo *protocol.RepoObject, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string) (string, error) {
+func (h *deployHandler) deployOnInstance(platform InstancePlatform, name, sshUser string, seq int, ref string, services []core.GcpServiceConfig, repoPorts []string, repo *protocol.RepoObject, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string) (string, error) {
 	ip, err := platform.IP(name)
 	if err != nil {
 		return "", fmt.Errorf("get IP: %w", err)
@@ -129,8 +129,10 @@ func (h *deployHandler) deployOnInstance(platform InstancePlatform, name, sshUse
 	var out bytes.Buffer
 	loginCmd := fmt.Sprintf("printf '%%s' '%s' | docker login %s -u %s --password-stdin", cred, docker.Server, docker.Username)
 	out.Reset()
-	if err := ssh.Run(loginCmd, &out); err != nil {
-		return "", fmt.Errorf("docker login: %w — %s", err, out.String())
+	ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel2m()
+	if err := ssh.Run(ctx2m, loginCmd, &out); err != nil {
+		return "", fmt.Errorf("docker login failed (credentials redacted): %w", err)
 	}
 	core.AppLog.Debug().Msgf("deploy [%s]: docker login OK", name)
 
@@ -138,7 +140,7 @@ func (h *deployHandler) deployOnInstance(platform InstancePlatform, name, sshUse
 		if repo == nil || repo.Name == "" {
 			return ip, nil
 		}
-		if err := h.runContainer(ssh, name, repo.Name, ref, "", "", docker, vaultHost, vaultToken, "", seq, &out); err != nil {
+		if err := h.runContainer(ssh, name, repo.Name, ref, "", "", repoPorts, docker, vaultHost, vaultToken, "", seq, &out); err != nil {
 			return "", err
 		}
 		return ip, nil
@@ -149,19 +151,22 @@ func (h *deployHandler) deployOnInstance(platform InstancePlatform, name, sshUse
 		if strings.Contains(svc.Name, "postoffice") {
 			bootstrap = clusterBootstrap
 		}
-		if err := h.runContainer(ssh, name, svc.Name, ref, svc.Network, svc.HttpBinding, docker, vaultHost, vaultToken, bootstrap, seq, &out); err != nil {
+		if err := h.runContainer(ssh, name, svc.Name, ref, svc.Network, svc.HttpBinding, svc.Ports, docker, vaultHost, vaultToken, bootstrap, seq, &out); err != nil {
 			return "", err
 		}
 	}
 	return ip, nil
 }
 
-func (h *deployHandler) runContainer(ssh util.SshClient, instanceName, svcName, ref, network, httpBinding string, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string, seq int, out *bytes.Buffer) error {
+func (h *deployHandler) runContainer(ssh util.SshClient, instanceName, svcName, ref, network, httpBinding string, ports []string, docker *protocol.DockerAccess, vaultHost, vaultToken, clusterBootstrap string, seq int, out *bytes.Buffer) error {
 	image := fmt.Sprintf("%s/%s:%s", docker.Username, svcName, ref)
 
 	var flags []string
 	if network != "" {
 		flags = append(flags, fmt.Sprintf("--network %s", network))
+	}
+	for _, p := range ports {
+		flags = append(flags, fmt.Sprintf("-p %s", p))
 	}
 	flags = append(flags, fmt.Sprintf("-e VAULT_HOST='%s'", vaultHost))
 	flags = append(flags, fmt.Sprintf("-e VAULT_TOKEN='%s'", vaultToken))
@@ -183,7 +188,10 @@ func (h *deployHandler) runContainer(ssh util.SshClient, instanceName, svcName, 
 	}
 	for _, cmd := range cmds {
 		out.Reset()
-		if err := ssh.Run(cmd, out); err != nil {
+		ctx10m, cancel10m := context.WithTimeout(context.Background(), 10*time.Minute)
+		err := ssh.Run(ctx10m, cmd, out)
+		cancel10m()
+		if err != nil {
 			return fmt.Errorf("deploy [%s/%s] %q: %w — %s", instanceName, svcName, cmd, err, out.String())
 		}
 		core.AppLog.Debug().Msgf("deploy [%s/%s]: %s", instanceName, svcName, strings.TrimSpace(out.String()))

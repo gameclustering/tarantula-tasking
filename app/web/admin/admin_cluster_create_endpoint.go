@@ -4,11 +4,13 @@ import (
 	"io"
 	"net/http"
 
+	"gameclustering.com/internal/cloud"
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/persistence"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -36,44 +38,92 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "platform is required"}))
 		return
 	}
-	// App tasks require an appRepo; service tasks require a name instead.
 	if (plan.AppRepo == nil || plan.AppRepo.Name == "") && plan.Name == "" {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "appRepo or service name is required"}))
 		return
 	}
 
-	msg, err := anypb.New(&plan)
+	gitKey, err := s.Cluster().AuthKey("git")
 	if err != nil {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "git auth key: " + err.Error()}))
 		return
+	}
+	planName := plan.Name
+	if planName == "" && plan.AppRepo != nil {
+		planName = plan.AppRepo.Name
+	}
+	cfg, err := cloud.LoadDeployConfig(plan.DeployRepo, plan.Platform, planName, gitKey)
+	if err != nil {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "deploy config: " + err.Error()}))
+		return
+	}
+
+	steps := cfg.ResolveSteps(plan.Env)
+	deployPhase := cfg.Resolve(plan.Env, "deploy")
+	buildPhase := cfg.Resolve(plan.Env, "build")
+	testPhase := cfg.Resolve(plan.Env, "test")
+	instanceCount := deployPhase.InstanceNumber
+	if instanceCount < 1 {
+		instanceCount = 1
+	}
+	buildCount := len(buildPhase.BuildHosts)
+	if buildCount < 1 {
+		buildCount = 1
+	}
+	// Drop the test step when deploy config has no test repo/prefix — mirrors skip logic in test.go.
+	if testPhase.TestRepo == "" || testPhase.Prefix == "" {
+		filtered := steps[:0]
+		for _, s := range steps {
+			if s != "test" {
+				filtered = append(filtered, s)
+			}
+		}
+		steps = filtered
 	}
 
 	p := plan.Platform
 	tb := persistence.NewTaskBuilder(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "cluster-create"})
 
-	vb := tb.Validator(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "validator"})
-	vb.Transaction().Meta(&protocol.Meta{Name: "check_" + p}).Message(msg).Build()
-	vb.Build()
-
-	jb1 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "create"})
-	jb1.Transaction().Meta(&protocol.Meta{Name: "create_" + p}).Message(msg).Build()
-	jb1.Build()
-
-	jb2 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "update"})
-	jb2.Transaction().Meta(&protocol.Meta{Name: "update_" + p}).Message(msg).Build()
-	jb2.Build()
-
-	jb3 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "build"})
-	jb3.Transaction().Meta(&protocol.Meta{Name: "build_" + p}).Message(msg).Build()
-	jb3.Build()
-
-	jb4 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "deploy"})
-	jb4.Transaction().Meta(&protocol.Meta{Name: "deploy_" + p}).Message(msg).Build()
-	jb4.Build()
-
-	jb5 := tb.Job(&protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: "test"})
-	jb5.Transaction().Meta(&protocol.Meta{Name: "test_" + p}).Message(msg).Build()
-	jb5.Build()
+	for i, step := range steps {
+		meta := &protocol.Meta{NodeId: s.NodeId(), Tag: s.Context(), Name: step}
+		if i == 0 {
+			// First step is always the validator.
+			msg, err := anypb.New(&plan)
+			if err != nil {
+				w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
+				return
+			}
+			vb := tb.Validator(meta)
+			vb.Transaction().Meta(&protocol.Meta{Name: step + "_" + p}).Message(msg).Build()
+			vb.Build()
+			continue
+		}
+		jb := tb.Job(meta)
+		if core.ParallelSteps[step] {
+			count := instanceCount
+			if step == "build" {
+				count = buildCount
+			}
+			for seq := 1; seq <= count; seq++ {
+				seqPlan := proto.Clone(&plan).(*protocol.PlanObject)
+				seqPlan.Seq = int32(seq)
+				msg, err := anypb.New(seqPlan)
+				if err != nil {
+					w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
+					return
+				}
+				jb.Transaction().Meta(&protocol.Meta{Name: step + "_" + p}).Message(msg).Build()
+			}
+		} else {
+			msg, err := anypb.New(&plan)
+			if err != nil {
+				w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
+				return
+			}
+			jb.Transaction().Meta(&protocol.Meta{Name: step + "_" + p}).Message(msg).Build()
+		}
+		jb.Build()
+	}
 
 	rp, err := s.Cluster().Issue(tb.Build())
 	if err != nil {

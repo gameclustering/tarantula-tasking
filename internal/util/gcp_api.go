@@ -8,6 +8,7 @@ import (
 	"cloud.google.com/go/auth/credentials"
 	compute "cloud.google.com/go/compute/apiv1"
 	computepb "cloud.google.com/go/compute/apiv1/computepb"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/proto"
 )
@@ -49,8 +50,11 @@ func (g *GcpApi) List(ins OnInstance) error {
 	it := g.client.List(context.Background(), req)
 	for {
 		instance, err := it.Next()
-		if err != nil {
+		if err == iterator.Done {
 			break
+		}
+		if err != nil {
+			return fmt.Errorf("list instances: %w", err)
 		}
 		ins(instance)
 	}

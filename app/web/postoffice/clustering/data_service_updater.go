@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"slices"
 	"strings"
 	"time"
@@ -85,10 +86,20 @@ func (m *DataServiceProvider) balanceOnNodeAdded(added RingUpdate) {
 	if len(ringSync.Ranges) == 0 {
 		return
 	}
-	m.Mll.MRequest <- core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added.Nodes[0].IP}
+	nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added.Nodes[0].IP}
+	select {
+	case m.Mll.MRequest <- nodeReq:
+	default:
+		go func() { m.Mll.MRequest <- nodeReq }()
+	}
 	m.subscriptions.lookup(func(sub core.Subscription) {
 		if sub.Endpoint == m.rpcEndpoint {
-			m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Address: added.Nodes[0].IP, Source: core.RingSync{Sub: sub}}
+			subReq := core.RingRequest{Opt: SYNC_SUB_OPT, Address: added.Nodes[0].IP, Source: core.RingSync{Sub: sub}}
+			select {
+			case m.Mll.MRequest <- subReq:
+			default:
+				go func() { m.Mll.MRequest <- subReq }()
+			}
 		}
 	})
 }
@@ -137,16 +148,27 @@ func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
 
 func (m *DataServiceProvider) RingUpdated() {
 	running := true
-	subSync := time.NewTicker(60 * time.Second)
+	// Random first-tick (1-60s) spreads cluster subSync across the full window,
+	// preventing thundering herd when all nodes start within seconds of each other.
+	subSync := time.NewTicker(time.Duration(1+rand.Int63n(60)) * time.Second)
+	firstSubSyncTick := true
 	defer subSync.Stop()
 	for running {
 		select {
 		case <-subSync.C:
-			m.subscriptions.lookup(func(sub core.Subscription) {
-				if sub.Endpoint == m.rpcEndpoint {
-					m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
-				}
-			})
+			if firstSubSyncTick {
+				firstSubSyncTick = false
+				subSync.Reset(60 * time.Second)
+			}
+			// Run in goroutine so RingUpdated is not blocked during the sends;
+			// each send to MRequest is bounded by Listen()'s processing of one SYNC_SUB_OPT.
+			go func() {
+				m.subscriptions.lookup(func(sub core.Subscription) {
+					if sub.Endpoint == m.rpcEndpoint {
+						m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
+					}
+				})
+			}()
 		case ringUpdate := <-m.RNode:
 			switch ringUpdate.State {
 			case NODE_STATE_SHUTDOWN:
@@ -202,7 +224,13 @@ func (m *DataServiceProvider) RingUpdated() {
 				req.Subs <- m.subscriptions.topic(req)
 			case TASK_ASSIGN:
 				name := fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, req.Name)
-				sub := m.subscriptions.pick(name, req.Tag)
+				var sub *core.Subscription
+				if req.NodeId != "" {
+					sub = m.subscriptions.pickByNodeId(name, req.NodeId)
+				}
+				if sub == nil {
+					sub = m.subscriptions.pick(name, req.Tag)
+				}
 				if sub != nil {
 					req.Subs <- []core.Subscription{*sub}
 				} else {
@@ -267,6 +295,8 @@ func (m *DataServiceProvider) RingUpdated() {
 
 	}
 	//shutdown server
+	m.running = false
+	close(m.shutdown)
 	for range SET_OPERATOR_NUM {
 		m.DSet <- SetData{Opt: core.SET_OPT_CLOSE}
 	}

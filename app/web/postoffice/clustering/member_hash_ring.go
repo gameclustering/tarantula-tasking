@@ -39,7 +39,12 @@ func (m *MemberHashRing) OnAdd(node core.Node) {
 	}
 	slices.SortFunc(m.nodes, cmp)
 	m.nodeNum++
-	m.WNode <- RingUpdate{State: NODE_STATE_LIVE, Nodes: added}
+	update := RingUpdate{State: NODE_STATE_LIVE, Nodes: added}
+	select {
+	case m.WNode <- update:
+	default:
+		go func() { m.WNode <- update }()
+	}
 }
 
 func (m *MemberHashRing) OnRemove(node core.Node) {
@@ -59,7 +64,12 @@ func (m *MemberHashRing) OnRemove(node core.Node) {
 	removed[0].CPool.Tag = mpart[0]
 	removed[0].CPool.NodeId = mpart[1]
 	removed[0].CPool.Release()
-	m.WNode <- RingUpdate{State: NODE_STATE_DEAD, Nodes: removed}
+	update := RingUpdate{State: NODE_STATE_DEAD, Nodes: removed}
+	select {
+	case m.WNode <- update:
+	default:
+		go func() { m.WNode <- update }()
+	}
 }
 
 func (m *MemberHashRing) OnUpdate(node core.Node) {

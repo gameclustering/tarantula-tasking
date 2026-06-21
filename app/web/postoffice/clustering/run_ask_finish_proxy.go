@@ -10,10 +10,10 @@ import (
 )
 
 func (c *DataServiceProvider) runAskFinish(t *protocol.Meta) (*protocol.Response, error) {
-	core.AppLog.Info().Msgf("runAskFinish called txn=%d name=%s state=%d", t.Id, t.Name, t.State)
+	core.AppLog.Info().Msgf("runAskFinish called txn=%d name=%s state=%d nodeId=%s", t.Id, t.Name, t.State, t.NodeId)
 	rq := make(chan []core.Subscription, 3)
 	defer close(rq)
-	c.DRequest <- TopicRequest{Opt: TASK_ASSIGN, Subs: rq, Tag: t.Tag, Name: t.Name}
+	c.DRequest <- TopicRequest{Opt: TASK_ASSIGN, Subs: rq, Tag: t.Tag, Name: t.Name, NodeId: t.NodeId}
 	subs := <-rq
 	for _, sub := range subs {
 		core.AppLog.Info().Msgf("runAskFinish dispatching txn=%d name=%s to=%s", t.Id, t.Name, sub.Endpoint)

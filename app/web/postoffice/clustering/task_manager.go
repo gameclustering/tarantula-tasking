@@ -92,14 +92,23 @@ func (m *TaskManager) schedule(t *TaskResource, job *protocol.Job) {
 		//core.AppLog.Debug().Msgf("task updated %d %d", t.revision, t.resource.Meta.Id)
 	})
 	go func() {
-		m.jobs <- job
+		select {
+		case m.jobs <- job:
+		default:
+			core.AppLog.Warn().Msgf("jobs chan full, dropping job")
+		}
 	}()
 }
 
 func (m *TaskManager) start(j *JobResource) {
 	core.AppLog.Info().Msgf("start job=%d task=%d txns=%d", j.resource.Meta.Id, j.resource.Meta.TaskId, len(j.resource.Transactions))
 	m.tms[j.resource.Meta.Id] = &Timeout{t: time.AfterFunc(time.Duration(j.resource.Meta.Timeout)*time.Second, func() {
-		m.updates <- &protocol.Meta{TaskId: j.resource.Meta.TaskId, JobId: j.resource.Meta.Id, State: protocol.TCC_JOB_TIMEOUT}
+		meta := &protocol.Meta{TaskId: j.resource.Meta.TaskId, JobId: j.resource.Meta.Id, State: protocol.TCC_JOB_TIMEOUT}
+		select {
+		case m.updates <- meta:
+		default:
+			core.AppLog.Warn().Msgf("updates chan full, dropping timer event txn=%d", meta.Id)
+		}
 	})}
 	j.joinParties = len(j.resource.Transactions)
 	j.confirmed = 0
@@ -111,7 +120,12 @@ func (m *TaskManager) start(j *JobResource) {
 		// First retry fires at reserveFirstRetryTimeout (60s) so a dropped
 		// TRANS_MAIL is recovered quickly; subsequent retries use tc.Meta.Timeout.
 		m.tms[tc.Meta.Id] = &Timeout{t: time.AfterFunc(reserveFirstRetryTimeout, func() {
-			m.updates <- &protocol.Meta{TaskId: j.resource.Meta.TaskId, JobId: j.resource.Meta.Id, Id: tc.Meta.Id, State: protocol.TCC_TRANSACTION_TIMEOUT}
+			meta := &protocol.Meta{TaskId: j.resource.Meta.TaskId, JobId: j.resource.Meta.Id, Id: tc.Meta.Id, State: protocol.TCC_TRANSACTION_TIMEOUT}
+			select {
+			case m.updates <- meta:
+			default:
+				core.AppLog.Warn().Msgf("updates chan full, dropping timer event txn=%d", meta.Id)
+			}
 		}), p: func() {
 			core.AppLog.Debug().Msgf("retry to reserve with timeout on %d", tc.Meta.Id)
 			tc.Meta.Time = timestamppb.Now()
@@ -146,7 +160,12 @@ func (m *TaskManager) confirmed(t *JobResource) {
 		tc.Meta.Prefix = t.resource.Meta.Prefix
 		//retry to finish
 		m.tms[tc.Meta.Id] = &Timeout{t: time.AfterFunc(time.Duration(tc.Meta.Timeout)*time.Second, func() {
-			m.updates <- &protocol.Meta{TaskId: t.resource.Meta.TaskId, JobId: t.resource.Meta.Id, Id: tc.Meta.Id, State: protocol.TCC_TRANSACTION_TIMEOUT}
+			meta := &protocol.Meta{TaskId: t.resource.Meta.TaskId, JobId: t.resource.Meta.Id, Id: tc.Meta.Id, State: protocol.TCC_TRANSACTION_TIMEOUT}
+			select {
+			case m.updates <- meta:
+			default:
+				core.AppLog.Warn().Msgf("updates chan full, dropping timer event txn=%d", meta.Id)
+			}
 		}), p: func() {
 			core.AppLog.Debug().Msgf("retry to finish with confirm/timeout on %d", tc.Meta.Id)
 			go m.s.runAskFinish(m.copy(tc.Meta))
@@ -172,7 +191,12 @@ func (m *TaskManager) canceled(c *protocol.Meta, t *JobResource) {
 		tc.Meta.Prefix = t.resource.Meta.Prefix
 		//retry to finish on cancel
 		m.tms[tc.Meta.Id] = &Timeout{t: time.AfterFunc(time.Duration(tc.Meta.Timeout)*time.Second, func() {
-			m.updates <- &protocol.Meta{TaskId: t.resource.Meta.TaskId, JobId: t.resource.Meta.Id, Id: tc.Meta.Id, State: protocol.TCC_TRANSACTION_TIMEOUT}
+			meta := &protocol.Meta{TaskId: t.resource.Meta.TaskId, JobId: t.resource.Meta.Id, Id: tc.Meta.Id, State: protocol.TCC_TRANSACTION_TIMEOUT}
+			select {
+			case m.updates <- meta:
+			default:
+				core.AppLog.Warn().Msgf("updates chan full, dropping timer event txn=%d", meta.Id)
+			}
 		}), p: func() {
 			core.AppLog.Debug().Msgf("retry to finish with cancel/timeout on %d", tc.Meta.Id)
 			go m.s.runAskFinish(m.copy(tc.Meta))
@@ -202,7 +226,12 @@ func (m *TaskManager) end(t *TaskResource) {
 	
 	t.resource.Meta.State = protocol.TCC_FINISHED
 	go m.s.updateTask(t, func() {
-		m.updates <- &protocol.Meta{Id: t.resource.Meta.Id, State: protocol.TCC_TASK_CLEAR}
+		meta := &protocol.Meta{Id: t.resource.Meta.Id, State: protocol.TCC_TASK_CLEAR}
+		select {
+		case m.updates <- meta:
+		default:
+			core.AppLog.Warn().Msgf("updates chan full, dropping timer event txn=%d", meta.Id)
+		}
 	})
 	tf := event.NewTaskEventFactory()
 	e, _ := tf.FromTaskEvent(t.tb.Build())
@@ -236,7 +265,11 @@ func (m *TaskManager) timeout(mkey uint64, meta *protocol.Meta) {
 		}
 		// retry
 		tm.t = time.AfterFunc(tm.d, func() {
-			m.updates <- meta
+			select {
+			case m.updates <- meta:
+			default:
+				core.AppLog.Warn().Msgf("updates chan full, dropping timer event txn=%d", meta.Id)
+			}
 		})
 		tm.r--
 		tm.p()
@@ -306,10 +339,6 @@ func (m *TaskManager) Set(t *protocol.Task) {
 }
 
 func (m *TaskManager) Wait() {
-	m.tasks = make(chan *protocol.Task, 10)
-	m.updates = make(chan *protocol.Meta, 10)
-	m.jobs = make(chan *protocol.Job, 10)
-	m.recoveries = make(chan uint64, 10)
 	for m.s.running {
 		select {
 		case taskId := <-m.recoveries:
@@ -373,6 +402,9 @@ func (m *TaskManager) Wait() {
 			case protocol.TCC_JOB_TIMEOUT:
 				core.AppLog.Info().Msgf("TCC_JOB_TIMEOUT job=%d task=%d", meta.JobId, meta.TaskId)
 				m.timeout(meta.JobId, meta)
+				if tj == nil {
+					continue
+				}
 				m.stop(tj)
 			}
 		}

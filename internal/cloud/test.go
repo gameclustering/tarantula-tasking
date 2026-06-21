@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -66,7 +67,11 @@ func (h *testHandler) reserve(t *protocol.Transaction) error {
 	}
 	defer platform.Close()
 
-	testName := fmt.Sprintf("%s-01", testPhase.Prefix)
+	seq := int(plan.Seq)
+	if seq < 1 {
+		seq = 1
+	}
+	testName := fmt.Sprintf("%s-%02d", testPhase.Prefix, seq)
 	if err := platform.Provision(testName); err != nil {
 		return fmt.Errorf("provision %s: %w", testName, err)
 	}
@@ -120,7 +125,7 @@ func (h *testHandler) reserve(t *protocol.Transaction) error {
 	if appPrefix == "" {
 		appPrefix = deployPhase.Prefix
 	}
-	appName := fmt.Sprintf("%s-01", appPrefix)
+	appName := fmt.Sprintf("%s-%02d", appPrefix, seq)
 	appIP, err := platform.IP(appName)
 	if err != nil {
 		return fmt.Errorf("app instance IP (%s): %w", appName, err)
@@ -135,23 +140,39 @@ func (h *testHandler) reserve(t *protocol.Transaction) error {
 		fmt.Sprintf("git clone %s tests", cloneURL),
 	} {
 		out.Reset()
-		if err := ssh.Run(cmd, &out); err != nil {
+		ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+		err := ssh.Run(ctx2m, cmd, &out)
+		cancel2m()
+		if err != nil {
+			core.AppLog.Warn().Msgf("test [%s]: clone failed: %s — %s", testName, err, out.String())
 			return fmt.Errorf("clone test repo: %w — %s", err, out.String())
 		}
 	}
 
+	// Compute the promotion tag now so we can pass it to entrypoint as APP_TAG
+	reportTag := plan.Env
+	if p := testPhase.Promotion; p != nil && p.TagPattern != "" {
+		reportTag = fmt.Sprintf(p.TagPattern, plan.Env)
+	}
+
 	out.Reset()
-	if err := ssh.Run(fmt.Sprintf("BASE_URL='%s' bash tests/entrypoint.sh 2>&1", baseURL), &out); err != nil {
+	ctx30m, cancel30m := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel30m()
+	if err := ssh.Run(ctx30m, fmt.Sprintf("BASE_URL='%s' APP_TAG='%s' bash tests/entrypoint.sh 2>&1", baseURL, reportTag), &out); err != nil {
+		core.AppLog.Warn().Msgf("test [%s]: entrypoint failed: %s\n%s", testName, err, strings.TrimSpace(out.String()))
 		return fmt.Errorf("tests failed: %w — %s", err, strings.TrimSpace(out.String()))
 	}
 	core.AppLog.Info().Msgf("test [%s]: all tests passed", planName)
 
-	if p := testPhase.Promotion; p != nil && p.Repo != "" && p.TagPattern != "" {
-		tag := fmt.Sprintf(p.TagPattern, plan.Env)
-		if err := h.pushTag(ssh, gitKey.Git.Org, p.Repo, tag); err != nil {
-			core.AppLog.Warn().Msgf("test: push promotion tag %s: %s", tag, err)
-		} else {
-			core.AppLog.Info().Msgf("test: pushed promotion tag %s → %s", tag, p.Repo)
+	// Only Seq=1 promotes — prevents N workers racing to push the same git tag.
+	if seq == 1 {
+		if p := testPhase.Promotion; p != nil && p.Repo != "" && p.TagPattern != "" {
+			tag := fmt.Sprintf(p.TagPattern, plan.Env)
+			if err := h.pushTag(ssh, gitKey.Git.Org, p.Repo, tag); err != nil {
+				core.AppLog.Warn().Msgf("test: push promotion tag %s: %s", tag, err)
+			} else {
+				core.AppLog.Info().Msgf("test: pushed promotion tag %s → %s", tag, p.Repo)
+			}
 		}
 	}
 
@@ -164,14 +185,18 @@ func (h *testHandler) installK6(ssh util.SshClient, name string) error {
 		"sudo apt-get update -qq",
 		"sudo apt-get install -y -qq ca-certificates gnupg curl git",
 		"sudo mkdir -p /etc/apt/keyrings",
-		"curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/k6-archive-keyring.gpg",
+		"curl -fsSL --retry 3 --retry-delay 2 https://dl.k6.io/key.gpg -o /tmp/k6.gpg.asc",
+		"sudo gpg --dearmor -o /etc/apt/keyrings/k6-archive-keyring.gpg /tmp/k6.gpg.asc",
 		`echo "deb [signed-by=/etc/apt/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list`,
 		"sudo apt-get update -qq",
 		"sudo apt-get install -y -qq k6",
 	}
 	for _, cmd := range cmds {
 		out.Reset()
-		if err := ssh.Run(cmd, &out); err != nil {
+		ctx10m, cancel10m := context.WithTimeout(context.Background(), 10*time.Minute)
+		err := ssh.Run(ctx10m, cmd, &out)
+		cancel10m()
+		if err != nil {
 			return fmt.Errorf("cmd %q: %w — %s", cmd, err, out.String())
 		}
 		core.AppLog.Debug().Msgf("test [%s]: %s", name, strings.TrimSpace(out.String()))
@@ -186,7 +211,9 @@ func (h *testHandler) uploadGitKey(ssh util.SshClient, user, keyFile, name strin
 	}
 	defer f.Close()
 	remotePath := fmt.Sprintf("/home/%s/.ssh/id_ed25519", user)
-	if err := ssh.Upload(f, remotePath, "0600"); err != nil {
+	ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel2m()
+	if err := ssh.Upload(ctx2m, f, remotePath, "0600"); err != nil {
 		return err
 	}
 	core.AppLog.Info().Msgf("test: git key uploaded to %s on %s", remotePath, name)
@@ -202,7 +229,10 @@ func (h *testHandler) pushTag(ssh util.SshClient, org, repo, tag string) error {
 		fmt.Sprintf("git -C promo push origin %s", tag),
 	} {
 		out.Reset()
-		if err := ssh.Run(cmd, &out); err != nil {
+		ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
+		err := ssh.Run(ctx2m, cmd, &out)
+		cancel2m()
+		if err != nil {
 			return fmt.Errorf("cmd %q: %w — %s", cmd, err, out.String())
 		}
 	}

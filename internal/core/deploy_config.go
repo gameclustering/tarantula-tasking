@@ -32,10 +32,12 @@ type PhaseConfig struct {
 	Prefix         string            `json:"prefix"`
 	InstanceNumber int               `json:"instanceNumber"`
 	SshUser        string            `json:"sshUser"`
-	BuildHost      string            `json:"buildHost"` // pre-existing build server; empty means provision one
+	BuildHost      string            `json:"buildHost"`  // single pre-existing build server; empty means provision one
+	BuildHosts     []string          `json:"buildHosts"` // multiple build servers for fan-out; seq selects index
 	VaultHost      string            `json:"vaultHost"` // public vault URL for deployed containers; overrides worker's VAULT_HOST
 	Description    string            `json:"description"`
 	Services       []GcpServiceConfig `json:"services"`   // fields are platform-agnostic
+	Ports          []string           `json:"ports"`      // host:container port mappings for single-repo deploys
 	Settings       map[string]string  `json:"settings"`   // platform-specific key-value pairs
 	Credentials    *CredentialSpec    `json:"credentials"` // auto-seed service credentials into Vault on first deploy
 	TestRepo       string             `json:"testRepo"`   // test phase: repo containing k6 scripts
@@ -43,7 +45,14 @@ type PhaseConfig struct {
 	Promotion      *PromotionSpec     `json:"promotion"`  // test phase: git tag to push on test pass
 }
 
+// DefaultSteps is the ordered pipeline used when deploy.json omits "steps".
+var DefaultSteps = []string{"check", "create", "update", "build", "deploy", "test"}
+
+// ParallelSteps are fanned out — one transaction per target (VM or build server) identified by plan.Seq.
+var ParallelSteps = map[string]bool{"create": true, "update": true, "build": true, "deploy": true, "test": true}
+
 type DeployEnvConfig struct {
+	Steps  []string    `json:"steps"`
 	Build  PhaseConfig `json:"build"`
 	Deploy PhaseConfig `json:"deploy"`
 	Test   PhaseConfig `json:"test"`
@@ -80,6 +89,18 @@ func (c *DeployConfig) Resolve(env, phase string) PhaseConfig {
 	return mergePhase(c.phaseOf(env, phase), def)
 }
 
+// ResolveSteps returns the ordered pipeline steps for the given env.
+// Falls back to the "default" env's steps, then to DefaultSteps.
+func (c *DeployConfig) ResolveSteps(env string) []string {
+	if envCfg, ok := c.raw[env]; ok && len(envCfg.Steps) > 0 {
+		return envCfg.Steps
+	}
+	if defCfg, ok := c.raw["default"]; ok && len(defCfg.Steps) > 0 {
+		return defCfg.Steps
+	}
+	return DefaultSteps
+}
+
 func (c *DeployConfig) phaseOf(env, phase string) PhaseConfig {
 	envCfg, ok := c.raw[env]
 	if !ok {
@@ -110,6 +131,9 @@ func mergePhase(primary, fallback PhaseConfig) PhaseConfig {
 	if primary.BuildHost == "" {
 		primary.BuildHost = fallback.BuildHost
 	}
+	if len(primary.BuildHosts) == 0 {
+		primary.BuildHosts = fallback.BuildHosts
+	}
 	if primary.VaultHost == "" {
 		primary.VaultHost = fallback.VaultHost
 	}
@@ -118,6 +142,9 @@ func mergePhase(primary, fallback PhaseConfig) PhaseConfig {
 	}
 	if len(primary.Services) == 0 {
 		primary.Services = fallback.Services
+	}
+	if len(primary.Ports) == 0 {
+		primary.Ports = fallback.Ports
 	}
 	if primary.Credentials == nil {
 		primary.Credentials = fallback.Credentials

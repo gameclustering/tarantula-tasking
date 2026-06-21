@@ -29,6 +29,7 @@ type PlanObject struct {
 	DeployRepo    *RepoObject            `protobuf:"bytes,4,opt,name=deployRepo,proto3" json:"deployRepo,omitempty"`
 	TestRepo      *RepoObject            `protobuf:"bytes,5,opt,name=testRepo,proto3" json:"testRepo,omitempty"`
 	Name          string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"` // service subdirectory under platform in deploy repo
+	Seq           int32                  `protobuf:"varint,7,opt,name=seq,proto3" json:"seq,omitempty"`  // instance sequence index for fan-out jobs (1-based); 0 means no fan-out
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -105,11 +106,18 @@ func (x *PlanObject) GetName() string {
 	return ""
 }
 
+func (x *PlanObject) GetSeq() int32 {
+	if x != nil {
+		return x.Seq
+	}
+	return 0
+}
+
 var File_plan_object_proto protoreflect.FileDescriptor
 
 const file_plan_object_proto_rawDesc = "" +
 	"\n" +
-	"\x11plan_object.proto\x12\bprotocol\x1a\x11repo_object.proto\"\xe6\x01\n" +
+	"\x11plan_object.proto\x12\bprotocol\x1a\x11repo_object.proto\"\xf8\x01\n" +
 	"\n" +
 	"PlanObject\x12\x1a\n" +
 	"\bplatform\x18\x01 \x01(\tR\bplatform\x12\x10\n" +
@@ -119,7 +127,8 @@ const file_plan_object_proto_rawDesc = "" +
 	"deployRepo\x18\x04 \x01(\v2\x14.protocol.RepoObjectR\n" +
 	"deployRepo\x120\n" +
 	"\btestRepo\x18\x05 \x01(\v2\x14.protocol.RepoObjectR\btestRepo\x12\x12\n" +
-	"\x04name\x18\x06 \x01(\tR\x04nameBR\n" +
+	"\x04name\x18\x06 \x01(\tR\x04name\x12\x10\n" +
+	"\x03seq\x18\a \x01(\x05R\x03seqBR\n" +
 	"\x17com.icodesoftware.protoB\x11PlanObjectFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var (

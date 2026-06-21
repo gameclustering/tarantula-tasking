@@ -69,8 +69,9 @@ func (s *SubscriptionRegistry) topic(req TopicRequest) []core.Subscription {
 // so reserve and confirm phases can land on different nodes.
 func (s *SubscriptionRegistry) pick(name, tag string) *core.Subscription {
 	type entry struct {
-		ep string
-		cp *core.RpcConnPool
+		ep     string
+		cp     *core.RpcConnPool
+		nodeId string
 	}
 	entries := make([]entry, 0)
 	for k, subMap := range s.topicEnds {
@@ -79,7 +80,7 @@ func (s *SubscriptionRegistry) pick(name, tag string) *core.Subscription {
 		}
 		for _, sub := range subMap {
 			if tag == "" || sub.Tag == tag {
-				entries = append(entries, entry{ep: k.Endpoint, cp: s.cPools[k]})
+				entries = append(entries, entry{ep: k.Endpoint, cp: s.cPools[k], nodeId: sub.NodeId})
 				break // one entry per endpoint
 			}
 		}
@@ -92,8 +93,26 @@ func (s *SubscriptionRegistry) pick(name, tag string) *core.Subscription {
 	idx := s.roundIdx[key] % len(entries)
 	s.roundIdx[key]++
 	e := entries[idx]
-	result := core.Subscription{Topic: name, Endpoint: e.ep, CPool: e.cp}
+	result := core.Subscription{Topic: name, Endpoint: e.ep, CPool: e.cp, NodeId: e.nodeId}
 	return &result
+}
+
+// pickByNodeId returns the subscriber with the given NodeId, used to route
+// AskFinish to the exact node that handled AskReserve.
+func (s *SubscriptionRegistry) pickByNodeId(name, nodeId string) *core.Subscription {
+	for k, subMap := range s.topicEnds {
+		if k.Topic != name {
+			continue
+		}
+		for _, sub := range subMap {
+			if sub.NodeId == nodeId {
+				cp := s.cPools[k]
+				result := core.Subscription{Topic: name, Endpoint: k.Endpoint, CPool: cp, NodeId: sub.NodeId}
+				return &result
+			}
+		}
+	}
+	return nil
 }
 
 func (s *SubscriptionRegistry) list(prefixed bool) []core.Subscription {

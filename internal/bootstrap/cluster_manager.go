@@ -416,6 +416,11 @@ func (c *ClusterManager) Forward(level zerolog.Level, log []byte) {
 }
 
 func (c *ClusterManager) handleTranstion(l core.TransactionListener, t *protocol.Transaction) {
+	defer func() {
+		if r := recover(); r != nil {
+			core.AppLog.Error().Msgf("handleTranstion panic recovered: %v — txn=%d name=%s", r, t.Meta.Id, t.Meta.Name)
+		}
+	}()
 	state := t.Meta.State
 	t.Meta.NodeId = c.App.NodeId()
 	t.Meta.Tag = c.App.Context()

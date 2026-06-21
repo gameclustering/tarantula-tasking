@@ -2,6 +2,8 @@ module gameclustering.com/admin
 
 go 1.26.3
 
+replace gameclustering.com/internal/cloud => ../../../internal/cloud
+
 replace gameclustering.com/internal/persistence => ../../../internal/persistence
 
 replace gameclustering.com/internal/util => ../../../internal/util
@@ -16,6 +18,7 @@ replace gameclustering.com/internal/protocol => ../../../internal/protocol
 
 require (
 	gameclustering.com/internal/bootstrap v0.0.0-00010101000000-000000000000
+	gameclustering.com/internal/cloud v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/core v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/event v0.0.0-00010101000000-000000000000
 	gameclustering.com/internal/persistence v0.0.0-00010101000000-000000000000
