@@ -18,7 +18,7 @@ type Query interface {
 	QTopic() string
 	QStartTime() time.Time
 	QEndTime() time.Time
-	QLimit() int32
+	QLimit() int32 
 	QOffset() int32
 	QRead(b DataBuffer) error
 	QWrite(b DataBuffer) error
