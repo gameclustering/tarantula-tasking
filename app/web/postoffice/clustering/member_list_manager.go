@@ -21,11 +21,11 @@ type MemberlistManager struct {
 	Seed []string
 	MemberListListener
 
-	StoreDir    string
-	Ctx         string
-	Binding     string
+	StoreDir      string
+	Ctx           string
+	Binding       string
 	AdvertiseAddr string // Vultr private IP advertised to cluster peers for inter-node RPC
-	LocalHost   string  // Docker bridge IP (e.g. 172.17.0.1) added as TLS SAN for admin/cloud connectivity
+	LocalHost     string // Docker bridge IP (e.g. 172.17.0.1) added as TLS SAN for admin/cloud connectivity
 }
 
 func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core.Sequence, vt *util.VaultClient) error {
@@ -57,7 +57,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	cfg.LogOutput = core.AppLog
 	list, err := memberlist.Create(cfg)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	m.meta = meta
 	m.Memberlist = list
@@ -101,7 +101,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	joined, err := list.Join(m.Seed)
 	list.UpdateNode(time.Second * 5)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, m.DataServiceProvider.rpcEndpoint)
 	go m.DataServiceProvider.recoverTasks()

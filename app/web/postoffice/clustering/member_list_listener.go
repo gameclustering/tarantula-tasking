@@ -105,12 +105,16 @@ func (m *MemberListListener) Listen() {
 					}
 				} else {
 					localAddr := m.LocalNode().Address()
+					// Pre-serialize once; all goroutines read the same bytes (no write after this).
+					payload := util.ToJson(mr.Source)
 					for _, mbr := range m.Members() {
 						if mbr.Address() == localAddr {
 							continue // skip self — already registered via direct MSync in Subscribe
 						}
 						core.AppLog.Debug().Msgf("sending topic message to %s", mbr.FullAddress().Name)
-						m.SendToAddress(mbr.FullAddress(), util.ToJson(mr.Source))
+						// Use SendReliable (TCP) in a goroutine so Listen() is not blocked
+						// and subscriptions are delivered even under transient UDP loss.
+						go m.SendReliable(mbr, payload)
 					}
 				}
 			case CLOSE_RING_OPT:

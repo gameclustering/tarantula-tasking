@@ -83,15 +83,17 @@ func (m *DataServiceProvider) balanceOnNodeAdded(added RingUpdate) {
 		slices.SortFunc(m.backRing.nodes, cmp)
 	}
 	m.backRing.nodeNum++
-	if len(ringSync.Ranges) == 0 {
-		return
+	// Data range handoff only when this node owns ranges adjacent to the new node.
+	if len(ringSync.Ranges) > 0 {
+		nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added.Nodes[0].IP}
+		select {
+		case m.Mll.MRequest <- nodeReq:
+		default:
+			go func() { m.Mll.MRequest <- nodeReq }()
+		}
 	}
-	nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added.Nodes[0].IP}
-	select {
-	case m.Mll.MRequest <- nodeReq:
-	default:
-		go func() { m.Mll.MRequest <- nodeReq }()
-	}
+	// Subscription sync is always needed: every node must push its subscriptions
+	// to the new node so it can route tasks correctly, regardless of ring ranges.
 	m.subscriptions.lookup(func(sub core.Subscription) {
 		if sub.Endpoint == m.rpcEndpoint {
 			subReq := core.RingRequest{Opt: SYNC_SUB_OPT, Address: added.Nodes[0].IP, Source: core.RingSync{Sub: sub}}
