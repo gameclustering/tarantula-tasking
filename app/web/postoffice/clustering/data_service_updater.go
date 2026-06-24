@@ -17,11 +17,6 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-type RingUpdate struct {
-	State int
-	Nodes []core.Node
-}
-
 const (
 	RECEIVER_START  uint32 = 1
 	TOPIC_REGISTER  uint32 = 2
@@ -60,17 +55,17 @@ type TopicRequest struct {
 	Subs  chan []core.Subscription
 }
 
-func (m *DataServiceProvider) balanceOnNodeAdded(added RingUpdate) {
+func (m *DataServiceProvider) balanceOnNodeAdded(added []core.Node) {
 
 	if m.backRing.nodeNum == 0 {
-		m.backRing.nodes = append(m.backRing.nodes, added.Nodes...)
+		m.backRing.nodes = append(m.backRing.nodes, added...)
 		slices.SortFunc(m.backRing.nodes, cmp)
 		m.backRing.nodeNum++
 		return
 	}
-	slices.SortFunc(added.Nodes, cmp)
+	slices.SortFunc(added, cmp)
 	ringSync := core.RingSync{Ranges: make([]core.RingRange, 0)}
-	for _, n := range added.Nodes {
+	for _, n := range added {
 		if !m.Mll.localNode(n) { //skip node initial add call
 			ringRange := m.backRing.rangeOfRing(n.RingToken)
 			if m.Mll.localNode(ringRange[1]) {
@@ -85,7 +80,7 @@ func (m *DataServiceProvider) balanceOnNodeAdded(added RingUpdate) {
 	m.backRing.nodeNum++
 	// Data range handoff only when this node owns ranges adjacent to the new node.
 	if len(ringSync.Ranges) > 0 {
-		nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added.Nodes[0].IP}
+		nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added[0].IP}
 		select {
 		case m.Mll.MRequest <- nodeReq:
 		default:
@@ -96,7 +91,7 @@ func (m *DataServiceProvider) balanceOnNodeAdded(added RingUpdate) {
 	// to the new node so it can route tasks correctly, regardless of ring ranges.
 	m.subscriptions.lookup(func(sub core.Subscription) {
 		if sub.Endpoint == m.rpcEndpoint {
-			subReq := core.RingRequest{Opt: SYNC_SUB_OPT, Address: added.Nodes[0].IP, Source: core.RingSync{Sub: sub}}
+			subReq := core.RingRequest{Opt: SYNC_SUB_OPT, Address: added[0].IP, Source: core.RingSync{Sub: sub}}
 			select {
 			case m.Mll.MRequest <- subReq:
 			default:
@@ -106,9 +101,9 @@ func (m *DataServiceProvider) balanceOnNodeAdded(added RingUpdate) {
 	})
 }
 
-func (m *DataServiceProvider) balanceOnNodeRemoved(removed RingUpdate) {
+func (m *DataServiceProvider) balanceOnNodeRemoved(removed []core.Node) {
 
-	for _, n := range removed.Nodes {
+	for _, n := range removed {
 		m.backRing.nodes = slices.DeleteFunc(m.backRing.nodes, func(d core.Node) bool {
 			return d.IP == n.IP
 		})
@@ -171,16 +166,7 @@ func (m *DataServiceProvider) RingUpdated() {
 					}
 				})
 			}()
-		case ringUpdate := <-m.RNode:
-			switch ringUpdate.State {
-			case NODE_STATE_SHUTDOWN:
-				running = false
-			case NODE_STATE_LIVE:
-				m.balanceOnNodeAdded(ringUpdate)
-			case NODE_STATE_DEAD:
-				m.balanceOnNodeRemoved(ringUpdate)
-			}
-
+		
 		case sync := <-m.RSync:
 			var ds core.RingSync
 			err := json.Unmarshal(sync, &ds)
@@ -347,4 +333,11 @@ func (m *DataServiceProvider) recoverFromNode(ds core.RingSync) {
 		}
 	}
 	core.AppLog.Info().Msgf("recovery from %s complete, %d rows", ds.Remote, total)
+}
+
+func (m *DataServiceProvider) NodeAdded(ring []core.Node) {
+	m.balanceOnNodeAdded(ring)
+}
+func (m *DataServiceProvider) NodeRemoved(ring []core.Node) {
+	m.balanceOnNodeRemoved(ring)
 }

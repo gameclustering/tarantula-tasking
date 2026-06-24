@@ -28,13 +28,20 @@ func (c *DataServiceProvider) HashRing(ctx context.Context, request *protocol.Re
 	rq := make(chan []core.Node, 1)
 	defer close(rq)
 	c.Mll.rangeRing(core.RingRequest{Async: rq, Opt: ALL_RING_OPT})
-	ring := <-rq
-	nodes := make([]*protocol.HashNode, 0)
-	for _, n := range ring {
-		hn := protocol.HashNode{Hash: n.RingToken, Endpoint: n.RpcEndpoint, Name: n.Name, Address: n.IP, Meta: n.Meta}
-		nodes = append(nodes, &hn)
+	select {
+	case ring := <-rq:
+		nodes := make([]*protocol.HashNode, 0)
+		for _, n := range ring {
+			hn := protocol.HashNode{Hash: n.RingToken, Endpoint: n.RpcEndpoint, Name: n.Name, Address: n.IP, Meta: n.Meta}
+			nodes = append(nodes, &hn)
+		}
+		return &protocol.Response{Nodes: nodes}, nil
+	case <-ctx.Done():
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("unkown error")
 	}
-	return &protocol.Response{Nodes: nodes}, nil
 }
 
 func (c *DataServiceProvider) KeyRing(ctx context.Context, request *protocol.Request) (*protocol.Response, error) {

@@ -44,9 +44,9 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.MPing = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.MConflict = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
-	rwNode := make(chan RingUpdate, NODE_EVENT_BUFFER_SIZE)
+	
 	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
-	m.WNode = rwNode
+	
 	m.MSync = rwSync
 	cfg.Events = &cl
 	cfg.Delegate = m
@@ -88,11 +88,12 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	// into the buffered channel; starting Listen before caCert is set means OnAdd runs with
 	// nil CACert, producing an RpcConnPool that fails TLS handshakes.
 	go m.Listen()
-	m.DataServiceProvider = &DataServiceProvider{RNode: rwNode, RSync: rwSync, seq: seq, vault: vt, auth: auth}
+	m.DataServiceProvider = &DataServiceProvider{RSync: rwSync, seq: seq, vault: vt, auth: auth}
 	m.DataServiceProvider.TLSCert = tlsCert
 	m.DataServiceProvider.CACert = []byte(ak.Cert)
 	m.DataServiceProvider.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
 	m.Mll = &m.MemberListListener
+	m.MemberHashRing.ringListener = m.DataServiceProvider
 	m.Mll.DWait.Add(1)
 	go m.DataServiceProvider.Start(m.StoreDir, m.Ctx)
 	m.Mll.DWait.Wait()
@@ -116,7 +117,8 @@ func (m *MemberlistManager) ShutdownHook() {
 	m.Shutdown()
 	core.AppLog.Info().Msg("closing resouces ...")
 	m.MRequest <- core.RingRequest{Opt: CLOSE_RING_OPT}
-	m.WNode <- RingUpdate{State: NODE_STATE_SHUTDOWN}
+	m.DataServiceProvider.running = false
+	
 	time.Sleep(3 * time.Second)
 	close(m.MEvent)
 	close(m.MAlive)
@@ -124,7 +126,7 @@ func (m *MemberlistManager) ShutdownHook() {
 	close(m.MMerge)
 	close(m.MConflict)
 	close(m.MRequest)
-	close(m.WNode)
+	//close(m.WNode)
 	close(m.MSync)
 	core.AppLog.Info().Msg("shut down has done successfully.")
 }
