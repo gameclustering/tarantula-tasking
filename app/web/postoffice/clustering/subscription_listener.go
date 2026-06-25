@@ -18,8 +18,6 @@ type SubscriptionListener struct {
 func (m *SubscriptionListener) Listen() {
 	running := true
 	for running {
-		//select {
-
 		mr := <-m.MRequest
 		switch mr.Opt {
 		case REPLICA_RING_OPT:
@@ -65,7 +63,6 @@ func (m *SubscriptionListener) Listen() {
 		case CLOSE_RING_OPT:
 			running = false
 		}
-
 	}
-	core.AppLog.Info().Msg("local member listener has stopped")
+	core.AppLog.Info().Msg("local subscription listener has stopped")
 }
