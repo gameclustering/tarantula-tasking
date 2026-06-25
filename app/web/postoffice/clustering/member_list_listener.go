@@ -40,7 +40,7 @@ type MemberListListener struct {
 	MSync     chan<- []byte
 	*memberlist.Memberlist
 	*MemberHashRing
-	*DataServiceProvider
+	DSP  *DataServiceProvider
 	meta []byte
 }
 

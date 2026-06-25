@@ -21,18 +21,17 @@ import (
 
 const (
 	PULL_BATCH_SIZE int = 100
-
 )
 
 type DataServiceProvider struct {
 	protocol.UnimplementedDataServiceServer
 	protocol.UnimplementedPostofficeServiceServer
 	protocol.UnimplementedTransactionServiceServer
-	Local       *persistence.BadgerLocal
-	
+	Local *persistence.BadgerLocal
+
 	RSync       <-chan []byte
 	server      *grpc.Server
-	Mll         *MemberListListener
+	Mll         MemberListListenerExporter
 	backRing    NodeRing
 	rpcEndpoint string
 	TLSCert     tls.Certificate // leaf cert generated at startup for the gRPC server

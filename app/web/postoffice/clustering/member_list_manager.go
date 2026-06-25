@@ -44,9 +44,9 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.MPing = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.MConflict = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
-	
+
 	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
-	
+
 	m.MSync = rwSync
 	cfg.Events = &cl
 	cfg.Delegate = m
@@ -88,37 +88,37 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	// into the buffered channel; starting Listen before caCert is set means OnAdd runs with
 	// nil CACert, producing an RpcConnPool that fails TLS handshakes.
 	go m.Listen()
-	m.DataServiceProvider = &DataServiceProvider{RSync: rwSync, seq: seq, vault: vt, auth: auth}
-	m.DataServiceProvider.TLSCert = tlsCert
-	m.DataServiceProvider.CACert = []byte(ak.Cert)
-	m.DataServiceProvider.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
-	m.Mll = &m.MemberListListener
-	m.MemberHashRing.ringListener = m.DataServiceProvider
-	m.Mll.DWait.Add(1)
-	go m.DataServiceProvider.Start(m.StoreDir, m.Ctx)
-	m.Mll.DWait.Wait()
+	m.DSP = &DataServiceProvider{RSync: rwSync, seq: seq, vault: vt, auth: auth}
+	m.DSP.TLSCert = tlsCert
+	m.DSP.CACert = []byte(ak.Cert)
+	m.DSP.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
+	m.DSP.Mll = MemberListListenerExporter{&m.MemberListListener}
+	m.MemberHashRing.ringListener = m.DSP
+	m.DSP.DWait.Add(1)
+	go m.DSP.Start(m.StoreDir, m.Ctx)
+	m.DSP.DWait.Wait()
 	time.Sleep(3 * time.Second)
-	go m.RingUpdated()
+	go m.DSP.RingUpdated()
 	joined, err := list.Join(m.Seed)
 	list.UpdateNode(time.Second * 5)
 	if err != nil {
 		return err
 	}
-	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, m.DataServiceProvider.rpcEndpoint)
-	go m.DataServiceProvider.recoverTasks()
+	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, m.DSP.rpcEndpoint)
+	go m.DSP.recoverTasks()
 	return nil
 }
 
 func (m *MemberlistManager) ShutdownHook() {
 	core.AppLog.Info().Msg("running shut down hook ...")
-	m.running = false
+	m.DSP.running = false
 	m.Leave(3 * time.Second)
 	time.Sleep(3 * time.Second)
 	m.Shutdown()
 	core.AppLog.Info().Msg("closing resouces ...")
 	m.MRequest <- core.RingRequest{Opt: CLOSE_RING_OPT}
-	m.DataServiceProvider.running = false
-	
+	m.DSP.running = false
+
 	time.Sleep(3 * time.Second)
 	close(m.MEvent)
 	close(m.MAlive)

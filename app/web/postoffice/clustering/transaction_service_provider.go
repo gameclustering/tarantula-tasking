@@ -101,7 +101,7 @@ func (c *DataServiceProvider) updateTask(t *TaskResource, updated ResourceUpdate
 		return
 	}
 	req.Data.Header.Revision = t.revision
-	req.Prefix = tb.Hash(c.Mll)
+	req.Prefix = tb.Hash(&c.Mll)
 	req.Opt = core.UPDATE_DATA_REQUEST
 	_, err = c.runUpdate(req)
 	if err != nil {

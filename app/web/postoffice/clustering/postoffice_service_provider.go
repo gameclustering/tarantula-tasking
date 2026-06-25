@@ -186,7 +186,7 @@ func (c *DataServiceProvider) Issue(ctx context.Context, task *protocol.Task) (*
 		}
 	}
 	tb := persistence.TaskBuilder{Target: task}
-	req, err := tb.HashRequest(c.Mll)
+	req, err := tb.HashRequest(&c.Mll)
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: err.Error()}, err
 	}

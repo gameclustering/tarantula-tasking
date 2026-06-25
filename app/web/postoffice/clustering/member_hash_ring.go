@@ -15,10 +15,11 @@ type MemberHashRingListener interface {
 	NodeRemoved(ring []core.Node)
 }
 
+
 type MemberHashRing struct {
 	NodeRing
 	weight int
-	
+
 	hLock  *sync.Mutex
 	auth   core.Authenticator
 	caCert []byte
@@ -47,7 +48,7 @@ func (m *MemberHashRing) OnAdd(node core.Node) {
 	slices.SortFunc(m.nodes, cmp)
 	m.nodeNum++
 	m.ringListener.NodeAdded(added)
-	
+
 }
 
 func (m *MemberHashRing) OnRemove(node core.Node) {
@@ -68,7 +69,7 @@ func (m *MemberHashRing) OnRemove(node core.Node) {
 	removed[0].CPool.NodeId = mpart[1]
 	removed[0].CPool.Release()
 	m.ringListener.NodeRemoved(removed)
-	
+
 }
 
 func (m *MemberHashRing) OnUpdate(node core.Node) {
