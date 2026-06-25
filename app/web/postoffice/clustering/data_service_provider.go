@@ -138,6 +138,10 @@ func (c *DataServiceProvider) Send(ctx context.Context, in *protocol.Topic) (*pr
 	return &protocol.Response{Successful: true, Message: "event published"}, nil
 }
 
+func (c *DataServiceProvider) SyncSubs(ctx context.Context, in *protocol.SubSync) (*protocol.Response, error) {
+	return &protocol.Response{Successful: true},nil
+}
+
 func (c *DataServiceProvider) Start(dir string, ctx string) {
 	c.running = true
 	c.shutdown = make(chan struct{})

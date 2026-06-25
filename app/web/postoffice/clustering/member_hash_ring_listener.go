@@ -41,6 +41,10 @@ type ReceiverAsync struct {
 	Subs map[string]core.Subscription
 }
 
+type MemberHashRingListener struct {
+	*DataServiceProvider
+}
+
 type TopicRequest struct {
 	Opt    uint32
 	NodeId string
@@ -55,7 +59,7 @@ type TopicRequest struct {
 	Subs  chan []core.Subscription
 }
 
-func (m *DataServiceProvider) balanceOnNodeAdded(added []core.Node) {
+func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 
 	if m.backRing.nodeNum == 0 {
 		m.backRing.nodes = append(m.backRing.nodes, added...)
@@ -101,7 +105,7 @@ func (m *DataServiceProvider) balanceOnNodeAdded(added []core.Node) {
 	})
 }
 
-func (m *DataServiceProvider) balanceOnNodeRemoved(removed []core.Node) {
+func (m *MemberHashRingListener) balanceOnNodeRemoved(removed []core.Node) {
 
 	for _, n := range removed {
 		m.backRing.nodes = slices.DeleteFunc(m.backRing.nodes, func(d core.Node) bool {
@@ -112,7 +116,7 @@ func (m *DataServiceProvider) balanceOnNodeRemoved(removed []core.Node) {
 	m.backRing.nodeNum--
 }
 
-func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
+func (m *MemberHashRingListener) registerSubscription(sub core.Subscription) {
 	if sub.Type == core.TRANS_MAIL && !strings.HasPrefix(sub.Topic, TRANS_SUB_PREFIX) {
 		sub.Topic = fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, sub.Topic)
 	}
@@ -143,7 +147,7 @@ func (m *DataServiceProvider) registerSubscription(sub core.Subscription) {
 	listener.Subs[sub.Topic] = sub
 }
 
-func (m *DataServiceProvider) RingUpdated() {
+func (m *MemberHashRingListener) RingUpdated() {
 	running := true
 	// Random first-tick (1-60s) spreads cluster subSync across the full window,
 	// preventing thundering herd when all nodes start within seconds of each other.
@@ -166,7 +170,7 @@ func (m *DataServiceProvider) RingUpdated() {
 					}
 				})
 			}()
-		
+
 		case sync := <-m.RSync:
 			var ds core.RingSync
 			err := json.Unmarshal(sync, &ds)
@@ -296,7 +300,7 @@ func (m *DataServiceProvider) RingUpdated() {
 
 // recoverFromNode pulls ring-partition data from ds.Remote in the background.
 // Runs in its own goroutine so DSet workers stay available for normal writes.
-func (m *DataServiceProvider) recoverFromNode(ds core.RingSync) {
+func (m *MemberHashRingListener) recoverFromNode(ds core.RingSync) {
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(m.CACert)
 	creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
@@ -335,9 +339,9 @@ func (m *DataServiceProvider) recoverFromNode(ds core.RingSync) {
 	core.AppLog.Info().Msgf("recovery from %s complete, %d rows", ds.Remote, total)
 }
 
-func (m *DataServiceProvider) NodeAdded(ring []core.Node) {
+func (m *MemberHashRingListener) NodeAdded(ring []core.Node) {
 	m.balanceOnNodeAdded(ring)
 }
-func (m *DataServiceProvider) NodeRemoved(ring []core.Node) {
+func (m *MemberHashRingListener) NodeRemoved(ring []core.Node) {
 	m.balanceOnNodeRemoved(ring)
 }

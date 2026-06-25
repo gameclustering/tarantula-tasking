@@ -10,11 +10,10 @@ import (
 	"gameclustering.com/internal/util"
 )
 
-type MemberHashRingListener interface {
+type MemberListChangeListener interface {
 	NodeAdded(ring []core.Node)
 	NodeRemoved(ring []core.Node)
 }
-
 
 type MemberHashRing struct {
 	NodeRing
@@ -24,7 +23,7 @@ type MemberHashRing struct {
 	auth   core.Authenticator
 	caCert []byte
 
-	ringListener MemberHashRingListener
+	listChangeListener MemberListChangeListener
 }
 
 func (m *MemberHashRing) vNode(node core.Node, weight int) core.Node {
@@ -47,7 +46,7 @@ func (m *MemberHashRing) OnAdd(node core.Node) {
 	}
 	slices.SortFunc(m.nodes, cmp)
 	m.nodeNum++
-	m.ringListener.NodeAdded(added)
+	m.listChangeListener.NodeAdded(added)
 
 }
 
@@ -68,7 +67,7 @@ func (m *MemberHashRing) OnRemove(node core.Node) {
 	removed[0].CPool.Tag = mpart[0]
 	removed[0].CPool.NodeId = mpart[1]
 	removed[0].CPool.Release()
-	m.ringListener.NodeRemoved(removed)
+	m.listChangeListener.NodeRemoved(removed)
 
 }
 

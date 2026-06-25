@@ -93,12 +93,13 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.DSP.CACert = []byte(ak.Cert)
 	m.DSP.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
 	m.DSP.Mll = MemberListListenerExporter{&m.MemberListListener}
-	m.MemberHashRing.ringListener = m.DSP
+	mll := MemberHashRingListener{m.DSP}
+	m.MemberHashRing.listChangeListener = &mll
 	m.DSP.DWait.Add(1)
 	go m.DSP.Start(m.StoreDir, m.Ctx)
 	m.DSP.DWait.Wait()
 	time.Sleep(3 * time.Second)
-	go m.DSP.RingUpdated()
+	go mll.RingUpdated()
 	joined, err := list.Join(m.Seed)
 	list.UpdateNode(time.Second * 5)
 	if err != nil {
@@ -130,3 +131,62 @@ func (m *MemberlistManager) ShutdownHook() {
 	close(m.MSync)
 	core.AppLog.Info().Msg("shut down has done successfully.")
 }
+
+//member list delegate hooks
+
+// delegate
+func (m *MemberListListener) NodeMeta(limit int) []byte {
+	//limit 512
+	return m.meta
+}
+
+func (m *MemberListListener) NotifyMsg(msg []byte) {
+	select {
+	case m.MSync <- msg:
+	default:
+		core.AppLog.Warn().Msgf("NotifyMsg: MSync full, dropping subscription sync message")
+	}
+}
+
+func (m *MemberListListener) GetBroadcasts(overhead, limit int) [][]byte {
+	//overhead 3 limit 1350
+	return nil
+}
+
+func (m *MemberListListener) LocalState(join bool) []byte {
+	return nil
+}
+func (m *MemberListListener) MergeRemoteState(buf []byte, join bool) {
+
+}
+
+// ping delegate
+func (m *MemberListListener) AckPayload() []byte {
+	return nil
+}
+
+func (m *MemberListListener) NotifyPingComplete(other *memberlist.Node, rtt time.Duration, payload []byte) {
+	m.MPing <- m.toNode(other)
+}
+
+// merge delegate
+func (m *MemberListListener) NotifyMerge(peers []*memberlist.Node) error {
+	nodes := make([]core.Node, 0, len(peers))
+	for _, n := range peers {
+		nodes = append(nodes, m.toNode(n))
+	}
+	m.MMerge <- nodes
+	return nil
+}
+
+// alive delegate
+func (m *MemberListListener) NotifyAlive(peer *memberlist.Node) error {
+	m.MAlive <- m.toNode(peer)
+	return nil
+}
+
+// conflict delegate
+func (m *MemberListListener) NotifyConflict(existing, other *memberlist.Node) {
+	m.MConflict <- []core.Node{m.toNode(existing), m.toNode(other)}
+}
+

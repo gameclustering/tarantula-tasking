@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DataService_Query_FullMethodName  = "/protocol.DataService/query"
-	DataService_Get_FullMethodName    = "/protocol.DataService/get"
-	DataService_Reset_FullMethodName  = "/protocol.DataService/reset"
-	DataService_Pull_FullMethodName   = "/protocol.DataService/pull"
-	DataService_Create_FullMethodName = "/protocol.DataService/create"
-	DataService_Update_FullMethodName = "/protocol.DataService/update"
-	DataService_Delete_FullMethodName = "/protocol.DataService/delete"
-	DataService_Send_FullMethodName   = "/protocol.DataService/send"
+	DataService_Query_FullMethodName    = "/protocol.DataService/query"
+	DataService_Get_FullMethodName      = "/protocol.DataService/get"
+	DataService_Reset_FullMethodName    = "/protocol.DataService/reset"
+	DataService_Pull_FullMethodName     = "/protocol.DataService/pull"
+	DataService_Create_FullMethodName   = "/protocol.DataService/create"
+	DataService_Update_FullMethodName   = "/protocol.DataService/update"
+	DataService_Delete_FullMethodName   = "/protocol.DataService/delete"
+	DataService_Send_FullMethodName     = "/protocol.DataService/send"
+	DataService_SyncSubs_FullMethodName = "/protocol.DataService/syncSubs"
 )
 
 // DataServiceClient is the client API for DataService service.
@@ -41,6 +42,7 @@ type DataServiceClient interface {
 	Update(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Delete(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Send(ctx context.Context, in *Topic, opts ...grpc.CallOption) (*Response, error)
+	SyncSubs(ctx context.Context, in *SubSync, opts ...grpc.CallOption) (*Response, error)
 }
 
 type dataServiceClient struct {
@@ -149,6 +151,16 @@ func (c *dataServiceClient) Send(ctx context.Context, in *Topic, opts ...grpc.Ca
 	return out, nil
 }
 
+func (c *dataServiceClient) SyncSubs(ctx context.Context, in *SubSync, opts ...grpc.CallOption) (*Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Response)
+	err := c.cc.Invoke(ctx, DataService_SyncSubs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DataServiceServer is the server API for DataService service.
 // All implementations must embed UnimplementedDataServiceServer
 // for forward compatibility.
@@ -161,6 +173,7 @@ type DataServiceServer interface {
 	Update(context.Context, *Request) (*Response, error)
 	Delete(context.Context, *Request) (*Response, error)
 	Send(context.Context, *Topic) (*Response, error)
+	SyncSubs(context.Context, *SubSync) (*Response, error)
 	mustEmbedUnimplementedDataServiceServer()
 }
 
@@ -194,6 +207,9 @@ func (UnimplementedDataServiceServer) Delete(context.Context, *Request) (*Respon
 }
 func (UnimplementedDataServiceServer) Send(context.Context, *Topic) (*Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method Send not implemented")
+}
+func (UnimplementedDataServiceServer) SyncSubs(context.Context, *SubSync) (*Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncSubs not implemented")
 }
 func (UnimplementedDataServiceServer) mustEmbedUnimplementedDataServiceServer() {}
 func (UnimplementedDataServiceServer) testEmbeddedByValue()                     {}
@@ -346,6 +362,24 @@ func _DataService_Send_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DataService_SyncSubs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubSync)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataServiceServer).SyncSubs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DataService_SyncSubs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataServiceServer).SyncSubs(ctx, req.(*SubSync))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DataService_ServiceDesc is the grpc.ServiceDesc for DataService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -376,6 +410,10 @@ var DataService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "send",
 			Handler:    _DataService_Send_Handler,
+		},
+		{
+			MethodName: "syncSubs",
+			Handler:    _DataService_SyncSubs_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
