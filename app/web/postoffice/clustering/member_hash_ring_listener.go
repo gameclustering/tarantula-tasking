@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"slices"
 	"strings"
-	"time"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
@@ -33,6 +31,10 @@ const (
 	TASK_ASSIGN uint32 = 8
 
 	TRANS_SUB_PREFIX string = "_t_"
+
+	NODE_ADDED   uint32 = 0
+	NODE_REMOVED uint32 = 1
+	NODE_UPDATED uint32 = 3
 )
 
 type ReceiverAsync struct {
@@ -43,6 +45,11 @@ type ReceiverAsync struct {
 
 type MemberHashRingListener struct {
 	*DataServiceProvider
+}
+
+type NodeRequest struct {
+	opt  uint32
+	node core.Node
 }
 
 type TopicRequest struct {
@@ -148,14 +155,15 @@ func (m *MemberHashRingListener) registerSubscription(sub core.Subscription) {
 }
 
 func (m *MemberHashRingListener) RingUpdated() {
-	running := true
+running:
 	// Random first-tick (1-60s) spreads cluster subSync across the full window,
 	// preventing thundering herd when all nodes start within seconds of each other.
-	subSync := time.NewTicker(time.Duration(1+rand.Int63n(60)) * time.Second)
-	firstSubSyncTick := true
-	defer subSync.Stop()
-	for running {
+	//subSync := time.NewTicker(time.Duration(1+rand.Int63n(60)) * time.Second)
+	//firstSubSyncTick := true
+	//defer subSync.Stop()
+	for {
 		select {
+		/**
 		case <-subSync.C:
 			if firstSubSyncTick {
 				firstSubSyncTick = false
@@ -170,8 +178,24 @@ func (m *MemberHashRingListener) RingUpdated() {
 					}
 				})
 			}()
-
-		case sync := <-m.RSync:
+		**/
+		case nr,ok := <-m.nRequest:
+			if !ok {
+				break running
+			}
+			switch nr.opt{
+			case NODE_ADDED:
+				m.balanceOnNodeAdded(m.OnAdd(nr.node))
+			case NODE_REMOVED:
+				m.balanceOnNodeRemoved(m.OnRemove(nr.node))
+			case NODE_UPDATED:
+				m.OnUpdate(nr.node)
+			}
+			
+		case sync, ok := <-m.RSync:
+			if !ok {
+				break running
+			}
 			var ds core.RingSync
 			err := json.Unmarshal(sync, &ds)
 			if err != nil {
@@ -185,7 +209,25 @@ func (m *MemberHashRingListener) RingUpdated() {
 					m.registerSubscription(ds.Sub)
 				}
 			}
-		case req := <-m.DRequest:
+		case mr, ok := <-m.MRequest:
+			if !ok {
+				break running
+			}
+			switch mr.Opt {
+			case REPLICA_RING_OPT:
+				nodes := m.keyRing(mr.Token, mr.Replicas)
+				mr.Async <- nodes
+			case ALL_RING_OPT:
+				nodes := make([]core.Node, 0)
+				for _, n := range m.nodes {
+					nodes = append(nodes, n)
+				}
+				mr.Async <- nodes
+			}
+		case req, ok := <-m.DRequest:
+			if !ok {
+				break running
+			}
 			switch req.Opt {
 			case RECEIVER_START:
 				_, existed := m.listeners[req.Name]
@@ -233,7 +275,10 @@ func (m *MemberHashRingListener) RingUpdated() {
 			case TASK_LIST:
 				req.Subs <- m.subscriptions.list(true)
 			}
-		case msg := <-m.DMessager:
+		case msg, ok := <-m.DMessager:
+			if !ok {
+				break running
+			}
 			switch msg.Opt {
 			case core.TOPIC_MAIL:
 				for _, ch := range m.listeners {
@@ -287,7 +332,6 @@ func (m *MemberHashRingListener) RingUpdated() {
 
 	}
 	//shutdown server
-	m.running = false
 	close(m.shutdown)
 	for range SET_OPERATOR_NUM {
 		m.DSet <- SetData{Opt: core.SET_OPT_CLOSE}
@@ -295,7 +339,7 @@ func (m *MemberHashRingListener) RingUpdated() {
 	close(m.DSet)
 	m.server.Stop()
 	m.Local.Close()
-	core.AppLog.Info().Msg("local data service provider has stopped")
+	core.AppLog.Info().Msg("local member hash ring listener has stopped")
 }
 
 // recoverFromNode pulls ring-partition data from ds.Remote in the background.
@@ -339,9 +383,28 @@ func (m *MemberHashRingListener) recoverFromNode(ds core.RingSync) {
 	core.AppLog.Info().Msgf("recovery from %s complete, %d rows", ds.Remote, total)
 }
 
-func (m *MemberHashRingListener) NodeAdded(ring []core.Node) {
-	m.balanceOnNodeAdded(ring)
+// memberlist callbacks
+func (m *MemberHashRingListener) NodeAdded(added core.Node) {
+	
+	m.nRequest <- NodeRequest{opt: NODE_ADDED, node: added}
 }
-func (m *MemberHashRingListener) NodeRemoved(ring []core.Node) {
-	m.balanceOnNodeRemoved(ring)
+func (m *MemberHashRingListener) NodeRemoved(removed core.Node) {
+	
+	m.nRequest <- NodeRequest{opt: NODE_REMOVED, node: removed}
+}
+
+func (m *MemberHashRingListener) NodeUpdated(updated core.Node) {
+	m.nRequest <- NodeRequest{opt: NODE_UPDATED, node: updated}
+}
+func (m *MemberHashRingListener) NodesMerged(nodes []core.Node) {
+
+}
+func (m *MemberHashRingListener) NodesConflicted(nodes []core.Node) {
+
+}
+func (m *MemberHashRingListener) NodeLived(node core.Node) {
+
+}
+func (m *MemberHashRingListener) NodePinged(node core.Node) {
+
 }

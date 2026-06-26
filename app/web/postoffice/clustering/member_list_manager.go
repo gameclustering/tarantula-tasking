@@ -29,8 +29,8 @@ type MemberlistManager struct {
 }
 
 func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core.Sequence, vt *util.VaultClient) error {
-	m.MemberHashRing = &MemberHashRing{weight: NODE_WEIGHT, hLock: &sync.Mutex{}, auth: auth}
-	m.nodes = make([]core.Node, 0)
+	memberHashRing := MemberHashRing{weight: NODE_WEIGHT, hLock: &sync.Mutex{}, auth: auth}
+	memberHashRing.nodes = make([]core.Node, 0)
 	cfg := memberlist.DefaultWANConfig()
 	cfg.Name = m.Binding
 	if m.AdvertiseAddr != "" {
@@ -38,11 +38,11 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	}
 	ch := make(chan memberlist.NodeEvent, NODE_EVENT_BUFFER_SIZE) //HAVE TO BUFFER
 	cl := memberlist.ChannelEventDelegate{Ch: ch}
-	m.MEvent = ch
-	m.MMerge = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
-	m.MAlive = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
-	m.MPing = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
-	m.MConflict = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
+	m.mEvent = ch
+	m.mMerge = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
+	m.mAlive = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
+	m.mPing = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
+	m.mConflict = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
 
 	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
@@ -83,21 +83,23 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	if err != nil {
 		return fmt.Errorf("generate tls cert: %w", err)
 	}
-	m.MemberHashRing.caCert = []byte(ak.Cert)
+	memberHashRing.caCert = []byte(ak.Cert)
 	// Start Listen after caCert is set: memberlist.Create fires NodeJoin for the local node
 	// into the buffered channel; starting Listen before caCert is set means OnAdd runs with
 	// nil CACert, producing an RpcConnPool that fails TLS handshakes.
+	DSP := &DataServiceProvider{RSync: rwSync, seq: seq, vault: vt, auth: auth}
+	DSP.MemberHashRing = &memberHashRing
+	DSP.TLSCert = tlsCert
+	DSP.CACert = []byte(ak.Cert)
+	DSP.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
+	DSP.Mll = MemberListListenerExporter{&m.MemberListListener}
+	mll := MemberHashRingListener{DSP}
+	
+	m.memberListChangeListener = &mll
 	go m.Listen()
-	m.DSP = &DataServiceProvider{RSync: rwSync, seq: seq, vault: vt, auth: auth}
-	m.DSP.TLSCert = tlsCert
-	m.DSP.CACert = []byte(ak.Cert)
-	m.DSP.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
-	m.DSP.Mll = MemberListListenerExporter{&m.MemberListListener}
-	mll := MemberHashRingListener{m.DSP}
-	m.MemberHashRing.listChangeListener = &mll
-	m.DSP.DWait.Add(1)
-	go m.DSP.Start(m.StoreDir, m.Ctx)
-	m.DSP.DWait.Wait()
+	DSP.DWait.Add(1)
+	go DSP.Start(m.StoreDir, m.Ctx)
+	DSP.DWait.Wait()
 	time.Sleep(3 * time.Second)
 	go mll.RingUpdated()
 	joined, err := list.Join(m.Seed)
@@ -105,27 +107,27 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	if err != nil {
 		return err
 	}
-	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, m.DSP.rpcEndpoint)
-	go m.DSP.recoverTasks()
+	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, DSP.rpcEndpoint)
+	go DSP.recoverTasks()
 	return nil
 }
 
 func (m *MemberlistManager) ShutdownHook() {
 	core.AppLog.Info().Msg("running shut down hook ...")
-	m.DSP.running = false
+	//m.DSP.running = false
 	m.Leave(3 * time.Second)
 	time.Sleep(3 * time.Second)
 	m.Shutdown()
 	core.AppLog.Info().Msg("closing resouces ...")
-	m.MRequest <- core.RingRequest{Opt: CLOSE_RING_OPT}
-	m.DSP.running = false
+	//m.MRequest <- core.RingRequest{Opt: CLOSE_RING_OPT}
+	//m.DSP.running = false
 
 	time.Sleep(3 * time.Second)
-	close(m.MEvent)
-	close(m.MAlive)
-	close(m.MPing)
-	close(m.MMerge)
-	close(m.MConflict)
+	close(m.mEvent)
+	close(m.mAlive)
+	close(m.mPing)
+	close(m.mMerge)
+	close(m.mConflict)
 	close(m.MRequest)
 	//close(m.WNode)
 	close(m.MSync)
@@ -166,7 +168,7 @@ func (m *MemberListListener) AckPayload() []byte {
 }
 
 func (m *MemberListListener) NotifyPingComplete(other *memberlist.Node, rtt time.Duration, payload []byte) {
-	m.MPing <- m.toNode(other)
+	m.mPing <- m.toNode(other)
 }
 
 // merge delegate
@@ -175,18 +177,17 @@ func (m *MemberListListener) NotifyMerge(peers []*memberlist.Node) error {
 	for _, n := range peers {
 		nodes = append(nodes, m.toNode(n))
 	}
-	m.MMerge <- nodes
+	m.mMerge <- nodes
 	return nil
 }
 
 // alive delegate
 func (m *MemberListListener) NotifyAlive(peer *memberlist.Node) error {
-	m.MAlive <- m.toNode(peer)
+	m.mAlive <- m.toNode(peer)
 	return nil
 }
 
 // conflict delegate
 func (m *MemberListListener) NotifyConflict(existing, other *memberlist.Node) {
-	m.MConflict <- []core.Node{m.toNode(existing), m.toNode(other)}
+	m.mConflict <- []core.Node{m.toNode(existing), m.toNode(other)}
 }
-

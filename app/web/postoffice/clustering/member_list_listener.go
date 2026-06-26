@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"gameclustering.com/internal/core"
-	"gameclustering.com/internal/util"
+	//"gameclustering.com/internal/util"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -16,7 +16,7 @@ const (
 	SYNC_NODE_OPT uint32 = 8
 	SYNC_SUB_OPT  uint32 = 9
 
-	CLOSE_RING_OPT uint32 = 99
+	//CLOSE_RING_OPT uint32 = 99
 
 	NODE_STATE_LIVE     = 0
 	NODE_STATE_DEAD     = 3
@@ -30,17 +30,16 @@ type RetryTrack struct {
 }
 
 type MemberListListener struct {
-	MEvent    chan memberlist.NodeEvent
-	MMerge    chan []core.Node
-	MAlive    chan core.Node
-	MPing     chan core.Node
-	MConflict chan []core.Node
+	mEvent    chan memberlist.NodeEvent
+	mMerge    chan []core.Node
+	mAlive    chan core.Node
+	mPing     chan core.Node
+	mConflict chan []core.Node
 	MRequest  chan core.RingRequest
 	MSync     chan<- []byte
 	*memberlist.Memberlist
-	*MemberHashRing
-	DSP  *DataServiceProvider
-	meta []byte
+	memberListChangeListener MemberListChangeListener
+	meta                     []byte
 }
 
 func (m *MemberListListener) toNode(e *memberlist.Node) core.Node {
@@ -50,84 +49,99 @@ func (m *MemberListListener) toNode(e *memberlist.Node) core.Node {
 
 // event dispatch from event delegate
 func (m *MemberListListener) Listen() {
-	running := true
-	for running {
+running:
+	for {
 		select {
-		case e := <-m.MEvent:
+		case e, ok := <-m.mEvent:
+			if !ok {
+				break running
+			}
 			switch e.Event {
 			case memberlist.NodeJoin:
 				core.AppLog.Debug().Msgf("META ADDED %s", string(e.Node.Meta))
-				m.OnAdd(m.toNode(e.Node))
+				m.memberListChangeListener.NodeAdded(m.toNode(e.Node))
 			case memberlist.NodeLeave:
 				if (m.LocalNode().Name) != e.Node.Name {
-					m.OnRemove(m.toNode(e.Node))
+					m.memberListChangeListener.NodeRemoved(m.toNode(e.Node))
 				}
 			case memberlist.NodeUpdate:
 				core.AppLog.Debug().Msgf("META UPDATED %s", string(e.Node.Meta))
-				m.OnUpdate(m.toNode(e.Node))
+				m.memberListChangeListener.NodeUpdated(m.toNode(e.Node))
 			}
-		case mg := <-m.MMerge:
-			m.OnMerge(mg)
-		case ma := <-m.MAlive:
-			m.OnLive(ma)
-		case mp := <-m.MPing:
-			m.OnPing(mp)
-		case mc := <-m.MConflict:
-			m.OnConflict(mc)
-		case mr := <-m.MRequest:
-			switch mr.Opt {
-			case REPLICA_RING_OPT:
-				nodes := m.keyRing(mr.Token, mr.Replicas)
-				mr.Async <- nodes
-			case ALL_RING_OPT:
-				nodes := make([]core.Node, 0)
-				for _, n := range m.nodes {
-					nodes = append(nodes, n)
-				}
-				mr.Async <- nodes
-			case SYNC_NODE_OPT:
-				for _, mbr := range m.Members() {
-					if mbr.Address() == mr.Address {
-						core.AppLog.Debug().Msgf("sending sync message to %s", mr.Address)
-						m.SendToAddress(mbr.FullAddress(), util.ToJson(mr.Source))
-						break
+		case mg, ok := <-m.mMerge:
+			if !ok {
+				break running
+			}
+			m.memberListChangeListener.NodesMerged(mg)
+		case ma, ok := <-m.mAlive:
+			if !ok {
+				break running
+			}
+			m.memberListChangeListener.NodeLived(ma)
+		case mp, ok := <-m.mPing:
+			if !ok {
+				break running
+			}
+			m.memberListChangeListener.NodePinged(mp)
+		case mc, ok := <-m.mConflict:
+			if !ok {
+				break running
+			}
+			m.memberListChangeListener.NodesConflicted(mc)
+			/**
+			case mr := <-m.MRequest:
+				switch mr.Opt {
+				case REPLICA_RING_OPT:
+					nodes := m.keyRing(mr.Token, mr.Replicas)
+					mr.Async <- nodes
+				case ALL_RING_OPT:
+					nodes := make([]core.Node, 0)
+					for _, n := range m.nodes {
+						nodes = append(nodes, n)
 					}
-				}
-			case SYNC_SUB_OPT:
-				if mr.Address != "" {
+					mr.Async <- nodes
+				case SYNC_NODE_OPT:
 					for _, mbr := range m.Members() {
 						if mbr.Address() == mr.Address {
-							core.AppLog.Debug().Msgf("sending topic message to %s", mbr.FullAddress().Name)
-							m.SendReliable(mbr, util.ToJson(mr.Source))
+							core.AppLog.Debug().Msgf("sending sync message to %s", mr.Address)
+							m.SendToAddress(mbr.FullAddress(), util.ToJson(mr.Source))
 							break
 						}
 					}
-				} else {
-					localAddr := m.LocalNode().Address()
-					// Pre-serialize once; all goroutines read the same bytes (no write after this).
-					payload := util.ToJson(mr.Source)
-					for _, mbr := range m.Members() {
-						if mbr.Address() == localAddr {
-							continue // skip self — already registered via direct MSync in Subscribe
+				case SYNC_SUB_OPT:
+					if mr.Address != "" {
+						for _, mbr := range m.Members() {
+							if mbr.Address() == mr.Address {
+								core.AppLog.Debug().Msgf("sending topic message to %s", mbr.FullAddress().Name)
+								m.SendReliable(mbr, util.ToJson(mr.Source))
+								break
+							}
 						}
-						core.AppLog.Debug().Msgf("sending topic message to %s", mbr.FullAddress().Name)
-						// Use SendReliable (TCP) in a goroutine so Listen() is not blocked
-						// and subscriptions are delivered even under transient UDP loss.
-						go m.SendReliable(mbr, payload)
+					} else {
+						localAddr := m.LocalNode().Address()
+						// Pre-serialize once; all goroutines read the same bytes (no write after this).
+						payload := util.ToJson(mr.Source)
+						for _, mbr := range m.Members() {
+							if mbr.Address() == localAddr {
+								continue // skip self — already registered via direct MSync in Subscribe
+							}
+							core.AppLog.Debug().Msgf("sending topic message to %s", mbr.FullAddress().Name)
+							// Use SendReliable (TCP) in a goroutine so Listen() is not blocked
+							// and subscriptions are delivered even under transient UDP loss.
+							go m.SendReliable(mbr, payload)
+						}
 					}
-				}
-			case CLOSE_RING_OPT:
-				running = false
-			}
+				case CLOSE_RING_OPT:
+					running = false
+				}**/
 		}
 	}
-	core.AppLog.Info().Msg("local member listener has stopped")
+	core.AppLog.Info().Msg("local member list listener has stopped")
 }
 
 func (m *MemberListListener) rangeRing(r core.RingRequest) {
-	m.MRequest <- r
+	//m.MRequest <- r
 }
 func (m *MemberListListener) localNode(node core.Node) bool {
 	return strings.HasPrefix(node.Name, m.LocalNode().Name)
 }
-

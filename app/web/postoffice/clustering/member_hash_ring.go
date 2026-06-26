@@ -11,8 +11,13 @@ import (
 )
 
 type MemberListChangeListener interface {
-	NodeAdded(ring []core.Node)
-	NodeRemoved(ring []core.Node)
+	NodeAdded(added core.Node)
+	NodeRemoved(removed core.Node)
+	NodeUpdated(removed core.Node)
+	NodesMerged(nodes []core.Node)
+	NodesConflicted(nodes []core.Node)
+	NodeLived(node core.Node)
+	NodePinged(node core.Node)
 }
 
 type MemberHashRing struct {
@@ -22,8 +27,6 @@ type MemberHashRing struct {
 	hLock  *sync.Mutex
 	auth   core.Authenticator
 	caCert []byte
-
-	listChangeListener MemberListChangeListener
 }
 
 func (m *MemberHashRing) vNode(node core.Node, weight int) core.Node {
@@ -32,7 +35,7 @@ func (m *MemberHashRing) vNode(node core.Node, weight int) core.Node {
 	return v
 }
 
-func (m *MemberHashRing) OnAdd(node core.Node) {
+func (m *MemberHashRing) OnAdd(node core.Node) []core.Node {
 	//core.AppLog.Debug().Msgf("node added rpc endpoint %s %s", node.RpcEndpoint, m.caCert)
 	pool := core.RpcConnPool{Target: node.RpcEndpoint, Auth: m.auth, CACert: m.caCert}
 	pool.Start()
@@ -46,11 +49,10 @@ func (m *MemberHashRing) OnAdd(node core.Node) {
 	}
 	slices.SortFunc(m.nodes, cmp)
 	m.nodeNum++
-	m.listChangeListener.NodeAdded(added)
-
+	return added
 }
 
-func (m *MemberHashRing) OnRemove(node core.Node) {
+func (m *MemberHashRing) OnRemove(node core.Node) []core.Node {
 	removed := make([]core.Node, 0, m.weight)
 	m.nodes = slices.DeleteFunc(m.nodes, func(n core.Node) bool {
 		if n.IP == node.IP {
@@ -67,8 +69,7 @@ func (m *MemberHashRing) OnRemove(node core.Node) {
 	removed[0].CPool.Tag = mpart[0]
 	removed[0].CPool.NodeId = mpart[1]
 	removed[0].CPool.Release()
-	m.listChangeListener.NodeRemoved(removed)
-
+	return removed
 }
 
 func (m *MemberHashRing) OnUpdate(node core.Node) {

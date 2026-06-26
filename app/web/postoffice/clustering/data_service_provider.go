@@ -43,7 +43,7 @@ type DataServiceProvider struct {
 	DWait    sync.WaitGroup
 	running  bool
 	shutdown chan struct{}
-
+	*MemberHashRing
 	//topic message
 	DMessager     chan *protocol.Mail
 	subscriptions SubscriptionRegistry
@@ -51,7 +51,8 @@ type DataServiceProvider struct {
 	listeners    map[string]ReceiverAsync //chan *protocol.Topic
 	listenerPool []string                 //roundrobin pool
 	DRequest     chan TopicRequest
-
+	MRequest     chan core.RingRequest //ring request
+	nRequest     chan NodeRequest      //node event
 	//task transaction
 	TManager *TaskManager
 	vault    *util.VaultClient
@@ -139,7 +140,7 @@ func (c *DataServiceProvider) Send(ctx context.Context, in *protocol.Topic) (*pr
 }
 
 func (c *DataServiceProvider) SyncSubs(ctx context.Context, in *protocol.SubSync) (*protocol.Response, error) {
-	return &protocol.Response{Successful: true},nil
+	return &protocol.Response{Successful: true}, nil
 }
 
 func (c *DataServiceProvider) Start(dir string, ctx string) {
@@ -160,6 +161,7 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	}
 	c.DMessager = make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE)
 	c.DRequest = make(chan TopicRequest, NODE_EVENT_BUFFER_SIZE)
+	c.nRequest = make(chan NodeRequest, NODE_EVENT_BUFFER_SIZE)
 	c.listeners = make(map[string]ReceiverAsync) //chan *protocol.Topic)
 	c.listenerPool = make([]string, 0)
 	c.subscriptions = SubscriptionRegistry{topicEnds: make(map[core.TopicKey]map[string]core.Subscription), cPools: make(map[core.TopicKey]*core.RpcConnPool), roundIdx: make(map[string]int), auth: c.auth, caCert: c.CACert}
