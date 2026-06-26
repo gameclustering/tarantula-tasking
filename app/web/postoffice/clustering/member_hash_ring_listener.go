@@ -77,9 +77,9 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 	slices.SortFunc(added, cmp)
 	ringSync := core.RingSync{Ranges: make([]core.RingRange, 0)}
 	for _, n := range added {
-		if !m.Mll.localNode(n) { //skip node initial add call
+		if !m.localNode(n) { //skip node initial add call
 			ringRange := m.backRing.rangeOfRing(n.RingToken)
-			if m.Mll.localNode(ringRange[1]) {
+			if m.localNode(ringRange[1]) {
 				ringSync.Remote = ringRange[1].RpcEndpoint
 				ringSync.Ranges = append(ringSync.Ranges, core.RingRange{From: ringRange[0].RingToken, To: n.RingToken})
 				core.AppLog.Debug().Msgf("push data key hash >= %d and < %d to remote node %s", ringRange[0].RingToken, n.RingToken, n.IP)
@@ -382,7 +382,9 @@ func (m *MemberHashRingListener) recoverFromNode(ds core.RingSync) {
 	}
 	core.AppLog.Info().Msgf("recovery from %s complete, %d rows", ds.Remote, total)
 }
-
+func (m *MemberHashRingListener) localNode(node core.Node) bool {
+	return strings.HasPrefix(node.Name, m.LocalNode().Name)
+}
 // memberlist callbacks
 func (m *MemberHashRingListener) NodeAdded(added core.Node) {
 	

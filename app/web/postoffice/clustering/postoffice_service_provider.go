@@ -26,7 +26,7 @@ func (c *DataServiceProvider) AuthKey(ctx context.Context, request *protocol.Req
 func (c *DataServiceProvider) HashRing(ctx context.Context, request *protocol.Request) (*protocol.Response, error) {
 	rq := make(chan []core.Node, 1)
 	defer close(rq)
-	c.Mll.rangeRing(core.RingRequest{Async: rq, Opt: ALL_RING_OPT})
+	c.MRequest <- (core.RingRequest{Async: rq, Opt: ALL_RING_OPT})
 	select {
 	case ring := <-rq:
 		nodes := make([]*protocol.HashNode, 0)
@@ -46,7 +46,7 @@ func (c *DataServiceProvider) HashRing(ctx context.Context, request *protocol.Re
 func (c *DataServiceProvider) KeyRing(ctx context.Context, request *protocol.Request) (*protocol.Response, error) {
 	rq := make(chan []core.Node, 1)
 	defer close(rq)
-	c.Mll.rangeRing(core.RingRequest{Async: rq, Opt: REPLICA_RING_OPT, Token: request.Prefix})
+	c.MRequest <- (core.RingRequest{Async: rq, Opt: REPLICA_RING_OPT, Token: request.Prefix})
 	ring := <-rq
 	nodes := make([]*protocol.HashNode, 0)
 	for _, n := range ring {
@@ -185,7 +185,7 @@ func (c *DataServiceProvider) Issue(ctx context.Context, task *protocol.Task) (*
 		}
 	}
 	tb := persistence.TaskBuilder{Target: task}
-	req, err := tb.HashRequest(&c.Mll)
+	req, err := tb.HashRequest(c)
 	if err != nil {
 		return &protocol.Response{Successful: false, Message: err.Error()}, err
 	}

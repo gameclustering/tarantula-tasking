@@ -13,6 +13,7 @@ import (
 	"gameclustering.com/internal/persistence"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
+	"github.com/hashicorp/memberlist"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -29,9 +30,9 @@ type DataServiceProvider struct {
 	protocol.UnimplementedTransactionServiceServer
 	Local *persistence.BadgerLocal
 
-	RSync       <-chan []byte
-	server      *grpc.Server
-	Mll         MemberListListenerExporter
+	RSync  <-chan []byte
+	server *grpc.Server
+	//Mll         MemberListListenerExporter
 	backRing    NodeRing
 	rpcEndpoint string
 	TLSCert     tls.Certificate // leaf cert generated at startup for the gRPC server
@@ -59,6 +60,7 @@ type DataServiceProvider struct {
 	//task transaction
 	TManager *TaskManager
 	vault    *util.VaultClient
+	*memberlist.Memberlist
 }
 
 func (c *DataServiceProvider) Get(ctx context.Context, in *protocol.Request) (*protocol.Response, error) {
@@ -98,7 +100,7 @@ func (c *DataServiceProvider) Create(ctx context.Context, in *protocol.Request) 
 	defer close(msg)
 	setData := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data, Resp: msg}
 	if setData.Prefix == 0 {
-		setData.Prefix = c.Mll.RingToken(setData.Key)
+		setData.Prefix = c.RingToken(setData.Key)
 	}
 	c.DSet <- setData
 	resp := <-msg
@@ -110,7 +112,7 @@ func (c *DataServiceProvider) Update(ctx context.Context, in *protocol.Request) 
 	defer close(msg)
 	setData := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data, Resp: msg}
 	if setData.Prefix == 0 {
-		c.Mll.RingToken(setData.Key)
+		c.RingToken(setData.Key)
 	}
 	c.DSet <- setData
 	resp := <-msg
@@ -122,7 +124,7 @@ func (c *DataServiceProvider) Delete(ctx context.Context, in *protocol.Request) 
 	defer close(msg)
 	setData := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data, Resp: msg}
 	if setData.Prefix == 0 {
-		c.Mll.RingToken(setData.Key)
+		c.RingToken(setData.Key)
 	}
 	c.DSet <- setData
 	resp := <-msg

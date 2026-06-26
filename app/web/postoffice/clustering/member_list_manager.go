@@ -92,9 +92,10 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	DSP.TLSCert = tlsCert
 	DSP.CACert = []byte(ak.Cert)
 	DSP.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
-	DSP.Mll = MemberListListenerExporter{&m.MemberListListener}
+	DSP.Memberlist = list
+	//DSP.Mll = MemberListListenerExporter{&m.MemberListListener}
 	mll := MemberHashRingListener{DSP}
-	
+
 	m.memberListChangeListener = &mll
 	go m.Listen()
 	DSP.DWait.Add(1)
@@ -146,7 +147,7 @@ func (m *MemberListListener) NotifyMsg(msg []byte) {
 	//select {
 	//case m.MSync <- msg:
 	//default:
-		//core.AppLog.Warn().Msgf("NotifyMsg: MSync full, dropping subscription sync message")
+	//core.AppLog.Warn().Msgf("NotifyMsg: MSync full, dropping subscription sync message")
 	//}
 }
 

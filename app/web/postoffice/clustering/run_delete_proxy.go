@@ -14,7 +14,7 @@ func (c *DataServiceProvider) runDelete(set *protocol.Request) (*protocol.Respon
 	if set.Prefix > 0 {
 		rt = set.Prefix
 	} else {
-		rt = c.Mll.RingToken(set.Data.Key)
+		rt = c.RingToken(set.Data.Key)
 		core.AppLog.Debug().Msgf("using key hash %d", rt)
 	}
 	retry := RetryTrack{Reties: RETRY_MAX}

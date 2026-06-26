@@ -21,7 +21,7 @@ func (c *DataServiceProvider) runPublish(topic *protocol.Topic) (*protocol.Respo
 	}
 	topic.Event.Key.Header.Timestamp = uint64(time.Now().UnixMilli())
 	req, err := tp.Request(topic)
-	req.Prefix = tp.Hash(&c.Mll)
+	req.Prefix = tp.Hash(c)
 	if err != nil {
 		return &protocol.Response{Successful: false}, err
 	}

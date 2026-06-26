@@ -67,7 +67,7 @@ func (c *DataServiceProvider) load(taskId uint64) (*TaskResource, error) {
 	buff.WriteUInt64(taskId)
 	buff.Flip()
 	k, _ := buff.Read(0)
-	prefix := c.Mll.RingToken(k)
+	prefix := c.RingToken(k)
 	req := protocol.Request{Prefix: prefix, Data: &protocol.Data{Key: k, Header: &protocol.Header{FactoryId: core.TASK_FACTORY_ID, ClassId: persistence.TASK_CLASS_ID}}}
 	resp, err := c.runGet(&req)
 	if err != nil {
@@ -101,7 +101,7 @@ func (c *DataServiceProvider) updateTask(t *TaskResource, updated ResourceUpdate
 		return
 	}
 	req.Data.Header.Revision = t.revision
-	req.Prefix = tb.Hash(&c.Mll)
+	req.Prefix = tb.Hash(c)
 	req.Opt = core.UPDATE_DATA_REQUEST
 	_, err = c.runUpdate(req)
 	if err != nil {
