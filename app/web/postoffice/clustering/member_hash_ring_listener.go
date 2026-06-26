@@ -52,6 +52,11 @@ type NodeRequest struct {
 	node core.Node
 }
 
+type RegisterRequest struct {
+	opt uint32
+	sub core.Subscription
+}
+
 type TopicRequest struct {
 	Opt    uint32
 	NodeId string
@@ -90,6 +95,7 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 	}
 	m.backRing.nodeNum++
 	// Data range handoff only when this node owns ranges adjacent to the new node.
+
 	if len(ringSync.Ranges) > 0 {
 		nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added[0].IP}
 		select {
@@ -100,6 +106,7 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 	}
 	// Subscription sync is always needed: every node must push its subscriptions
 	// to the new node so it can route tasks correctly, regardless of ring ranges.
+	/**
 	m.subscriptions.lookup(func(sub core.Subscription) {
 		if sub.Endpoint == m.rpcEndpoint {
 			subReq := core.RingRequest{Opt: SYNC_SUB_OPT, Address: added[0].IP, Source: core.RingSync{Sub: sub}}
@@ -109,7 +116,7 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 				go func() { m.MRequest <- subReq }()
 			}
 		}
-	})
+	})**/
 }
 
 func (m *MemberHashRingListener) balanceOnNodeRemoved(removed []core.Node) {
@@ -156,34 +163,13 @@ func (m *MemberHashRingListener) registerSubscription(sub core.Subscription) {
 
 func (m *MemberHashRingListener) RingUpdated() {
 running:
-	// Random first-tick (1-60s) spreads cluster subSync across the full window,
-	// preventing thundering herd when all nodes start within seconds of each other.
-	//subSync := time.NewTicker(time.Duration(1+rand.Int63n(60)) * time.Second)
-	//firstSubSyncTick := true
-	//defer subSync.Stop()
 	for {
 		select {
-		/**
-		case <-subSync.C:
-			if firstSubSyncTick {
-				firstSubSyncTick = false
-				subSync.Reset(60 * time.Second)
-			}
-			// Run in goroutine so RingUpdated is not blocked during the sends;
-			// each send to MRequest is bounded by Listen()'s processing of one SYNC_SUB_OPT.
-			go func() {
-				m.subscriptions.lookup(func(sub core.Subscription) {
-					if sub.Endpoint == m.rpcEndpoint {
-						m.Mll.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
-					}
-				})
-			}()
-		**/
-		case nr,ok := <-m.nRequest:
+		case nr, ok := <-m.nRequest:
 			if !ok {
 				break running
 			}
-			switch nr.opt{
+			switch nr.opt {
 			case NODE_ADDED:
 				m.balanceOnNodeAdded(m.OnAdd(nr.node))
 			case NODE_REMOVED:
@@ -191,7 +177,7 @@ running:
 			case NODE_UPDATED:
 				m.OnUpdate(nr.node)
 			}
-			
+
 		case sync, ok := <-m.RSync:
 			if !ok {
 				break running
@@ -385,13 +371,14 @@ func (m *MemberHashRingListener) recoverFromNode(ds core.RingSync) {
 func (m *MemberHashRingListener) localNode(node core.Node) bool {
 	return strings.HasPrefix(node.Name, m.LocalNode().Name)
 }
+
 // memberlist callbacks
 func (m *MemberHashRingListener) NodeAdded(added core.Node) {
-	
+
 	m.nRequest <- NodeRequest{opt: NODE_ADDED, node: added}
 }
 func (m *MemberHashRingListener) NodeRemoved(removed core.Node) {
-	
+
 	m.nRequest <- NodeRequest{opt: NODE_REMOVED, node: removed}
 }
 

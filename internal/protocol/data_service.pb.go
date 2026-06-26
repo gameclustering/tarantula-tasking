@@ -24,7 +24,7 @@ var File_data_service_proto protoreflect.FileDescriptor
 
 const file_data_service_proto_rawDesc = "" +
 	"\n" +
-	"\x12data_service.proto\x12\bprotocol\x1a\rrequest.proto\x1a\x0eresponse.proto\x1a\vtopic.proto\x1a\x0esub_sync.proto2\xd3\x03\n" +
+	"\x12data_service.proto\x12\bprotocol\x1a\rrequest.proto\x1a\x0eresponse.proto\x1a\vtopic.proto\x1a\x12subscription.proto2\x94\x04\n" +
 	"\vDataService\x122\n" +
 	"\x05query\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x000\x01\x12.\n" +
 	"\x03get\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x00\x120\n" +
@@ -33,40 +33,44 @@ const file_data_service_proto_rawDesc = "" +
 	"\x06create\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x00\x121\n" +
 	"\x06update\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x00\x121\n" +
 	"\x06delete\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x00\x12-\n" +
-	"\x04send\x12\x0f.protocol.Topic\x1a\x12.protocol.Response\"\x00\x123\n" +
-	"\bsyncSubs\x12\x11.protocol.SubSync\x1a\x12.protocol.Response\"\x00BS\n" +
+	"\x04send\x12\x0f.protocol.Topic\x1a\x12.protocol.Response\"\x00\x128\n" +
+	"\bregsiter\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00\x12:\n" +
+	"\n" +
+	"unregister\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00BS\n" +
 	"\x17com.icodesoftware.protoB\x12DataServiceFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var file_data_service_proto_goTypes = []any{
-	(*Request)(nil),  // 0: protocol.Request
-	(*Topic)(nil),    // 1: protocol.Topic
-	(*SubSync)(nil),  // 2: protocol.SubSync
-	(*Response)(nil), // 3: protocol.Response
+	(*Request)(nil),      // 0: protocol.Request
+	(*Topic)(nil),        // 1: protocol.Topic
+	(*Subscription)(nil), // 2: protocol.Subscription
+	(*Response)(nil),     // 3: protocol.Response
 }
 var file_data_service_proto_depIdxs = []int32{
-	0, // 0: protocol.DataService.query:input_type -> protocol.Request
-	0, // 1: protocol.DataService.get:input_type -> protocol.Request
-	0, // 2: protocol.DataService.reset:input_type -> protocol.Request
-	0, // 3: protocol.DataService.pull:input_type -> protocol.Request
-	0, // 4: protocol.DataService.create:input_type -> protocol.Request
-	0, // 5: protocol.DataService.update:input_type -> protocol.Request
-	0, // 6: protocol.DataService.delete:input_type -> protocol.Request
-	1, // 7: protocol.DataService.send:input_type -> protocol.Topic
-	2, // 8: protocol.DataService.syncSubs:input_type -> protocol.SubSync
-	3, // 9: protocol.DataService.query:output_type -> protocol.Response
-	3, // 10: protocol.DataService.get:output_type -> protocol.Response
-	3, // 11: protocol.DataService.reset:output_type -> protocol.Response
-	3, // 12: protocol.DataService.pull:output_type -> protocol.Response
-	3, // 13: protocol.DataService.create:output_type -> protocol.Response
-	3, // 14: protocol.DataService.update:output_type -> protocol.Response
-	3, // 15: protocol.DataService.delete:output_type -> protocol.Response
-	3, // 16: protocol.DataService.send:output_type -> protocol.Response
-	3, // 17: protocol.DataService.syncSubs:output_type -> protocol.Response
-	9, // [9:18] is the sub-list for method output_type
-	0, // [0:9] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,  // 0: protocol.DataService.query:input_type -> protocol.Request
+	0,  // 1: protocol.DataService.get:input_type -> protocol.Request
+	0,  // 2: protocol.DataService.reset:input_type -> protocol.Request
+	0,  // 3: protocol.DataService.pull:input_type -> protocol.Request
+	0,  // 4: protocol.DataService.create:input_type -> protocol.Request
+	0,  // 5: protocol.DataService.update:input_type -> protocol.Request
+	0,  // 6: protocol.DataService.delete:input_type -> protocol.Request
+	1,  // 7: protocol.DataService.send:input_type -> protocol.Topic
+	2,  // 8: protocol.DataService.regsiter:input_type -> protocol.Subscription
+	2,  // 9: protocol.DataService.unregister:input_type -> protocol.Subscription
+	3,  // 10: protocol.DataService.query:output_type -> protocol.Response
+	3,  // 11: protocol.DataService.get:output_type -> protocol.Response
+	3,  // 12: protocol.DataService.reset:output_type -> protocol.Response
+	3,  // 13: protocol.DataService.pull:output_type -> protocol.Response
+	3,  // 14: protocol.DataService.create:output_type -> protocol.Response
+	3,  // 15: protocol.DataService.update:output_type -> protocol.Response
+	3,  // 16: protocol.DataService.delete:output_type -> protocol.Response
+	3,  // 17: protocol.DataService.send:output_type -> protocol.Response
+	3,  // 18: protocol.DataService.regsiter:output_type -> protocol.Response
+	3,  // 19: protocol.DataService.unregister:output_type -> protocol.Response
+	10, // [10:20] is the sub-list for method output_type
+	0,  // [0:10] is the sub-list for method input_type
+	0,  // [0:0] is the sub-list for extension type_name
+	0,  // [0:0] is the sub-list for extension extendee
+	0,  // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_data_service_proto_init() }
@@ -77,7 +81,7 @@ func file_data_service_proto_init() {
 	file_request_proto_init()
 	file_response_proto_init()
 	file_topic_proto_init()
-	file_sub_sync_proto_init()
+	file_subscription_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
