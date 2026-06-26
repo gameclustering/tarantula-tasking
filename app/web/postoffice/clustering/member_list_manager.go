@@ -43,11 +43,11 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.mAlive = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.mPing = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.mConflict = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
-	m.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
+	//m.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
 
-	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
+	//rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
 
-	m.MSync = rwSync
+	//m.MSync = rwSync
 	cfg.Events = &cl
 	cfg.Delegate = m
 	cfg.Ping = m
@@ -87,7 +87,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	// Start Listen after caCert is set: memberlist.Create fires NodeJoin for the local node
 	// into the buffered channel; starting Listen before caCert is set means OnAdd runs with
 	// nil CACert, producing an RpcConnPool that fails TLS handshakes.
-	DSP := &DataServiceProvider{RSync: rwSync, seq: seq, vault: vt, auth: auth}
+	DSP := &DataServiceProvider{seq: seq, vault: vt, auth: auth}
 	DSP.MemberHashRing = &memberHashRing
 	DSP.TLSCert = tlsCert
 	DSP.CACert = []byte(ak.Cert)
@@ -128,9 +128,9 @@ func (m *MemberlistManager) ShutdownHook() {
 	close(m.mPing)
 	close(m.mMerge)
 	close(m.mConflict)
-	close(m.MRequest)
+	//close(m.MRequest)
 	//close(m.WNode)
-	close(m.MSync)
+	//close(m.MSync)
 	core.AppLog.Info().Msg("shut down has done successfully.")
 }
 
@@ -143,11 +143,11 @@ func (m *MemberListListener) NodeMeta(limit int) []byte {
 }
 
 func (m *MemberListListener) NotifyMsg(msg []byte) {
-	select {
-	case m.MSync <- msg:
-	default:
-		core.AppLog.Warn().Msgf("NotifyMsg: MSync full, dropping subscription sync message")
-	}
+	//select {
+	//case m.MSync <- msg:
+	//default:
+		//core.AppLog.Warn().Msgf("NotifyMsg: MSync full, dropping subscription sync message")
+	//}
 }
 
 func (m *MemberListListener) GetBroadcasts(overhead, limit int) [][]byte {

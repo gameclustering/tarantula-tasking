@@ -91,7 +91,7 @@ func (c *DataServiceProvider) scanLocalTaskIds() []uint64 {
 func (c *DataServiceProvider) isLocalRingOwner(prefix uint32) bool {
 	rq := make(chan []core.Node, 3)
 	defer close(rq)
-	c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: prefix, Replicas: REPLICA_MAX, Async: rq}
+	c.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: prefix, Replicas: REPLICA_MAX, Async: rq}
 	nodes := <-rq
 	return len(nodes) > 0 && nodes[0].RpcEndpoint == c.rpcEndpoint
 }

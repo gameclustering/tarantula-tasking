@@ -15,7 +15,7 @@ func (c *DataServiceProvider) runSetup(t *protocol.Task) (*protocol.Response, er
 	}
 	rq := make(chan []core.Node, 3)
 	defer close(rq)
-	c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: t.Meta.Prefix, Replicas: REPLICA_MAX, Async: rq}
+	c.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: t.Meta.Prefix, Replicas: REPLICA_MAX, Async: rq}
 	nodes := <-rq
 	ringNode := nodes[0]
 	core.AppLog.Info().Msgf("runSetup task=%d prefix=%d ring_owner=%s local=%s is_local=%v", t.Meta.Id, t.Meta.Prefix, ringNode.RpcEndpoint, c.rpcEndpoint, ringNode.RpcEndpoint == c.rpcEndpoint)

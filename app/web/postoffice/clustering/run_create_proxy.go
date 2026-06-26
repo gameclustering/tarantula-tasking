@@ -22,7 +22,7 @@ func (c *DataServiceProvider) runCreate(set *protocol.Request) (*protocol.Respon
 		core.AppLog.Debug().Msgf("using key hash %d", rt)
 	}
 	for retry.Reties > 0 {
-		c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: rt, Replicas: REPLICA_MAX, Async: rq}
+		c.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: rt, Replicas: REPLICA_MAX, Async: rq}
 		nodes := <-rq
 		ringNode := nodes[0]
 		resp, err := c.clientCreate(&ringNode, set)

@@ -35,8 +35,8 @@ type MemberListListener struct {
 	mAlive    chan core.Node
 	mPing     chan core.Node
 	mConflict chan []core.Node
-	MRequest  chan core.RingRequest
-	MSync     chan<- []byte
+	//MRequest  chan core.RingRequest
+	//MSync     chan<- []byte
 	*memberlist.Memberlist
 	memberListChangeListener MemberListChangeListener
 	meta                     []byte

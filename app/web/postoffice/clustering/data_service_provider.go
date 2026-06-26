@@ -53,6 +53,9 @@ type DataServiceProvider struct {
 	DRequest     chan TopicRequest
 	MRequest     chan core.RingRequest //ring request
 	nRequest     chan NodeRequest      //node event
+
+	MSync chan<- []byte
+
 	//task transaction
 	TManager *TaskManager
 	vault    *util.VaultClient
@@ -161,7 +164,11 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	}
 	c.DMessager = make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE)
 	c.DRequest = make(chan TopicRequest, NODE_EVENT_BUFFER_SIZE)
+	c.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
 	c.nRequest = make(chan NodeRequest, NODE_EVENT_BUFFER_SIZE)
+	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
+	c.RSync = rwSync
+	c.MSync = rwSync
 	c.listeners = make(map[string]ReceiverAsync) //chan *protocol.Topic)
 	c.listenerPool = make([]string, 0)
 	c.subscriptions = SubscriptionRegistry{topicEnds: make(map[core.TopicKey]map[string]core.Subscription), cPools: make(map[core.TopicKey]*core.RpcConnPool), roundIdx: make(map[string]int), auth: c.auth, caCert: c.CACert}

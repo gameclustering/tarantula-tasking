@@ -93,9 +93,9 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 	if len(ringSync.Ranges) > 0 {
 		nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added[0].IP}
 		select {
-		case m.Mll.MRequest <- nodeReq:
+		case m.MRequest <- nodeReq:
 		default:
-			go func() { m.Mll.MRequest <- nodeReq }()
+			go func() { m.MRequest <- nodeReq }()
 		}
 	}
 	// Subscription sync is always needed: every node must push its subscriptions
@@ -104,9 +104,9 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 		if sub.Endpoint == m.rpcEndpoint {
 			subReq := core.RingRequest{Opt: SYNC_SUB_OPT, Address: added[0].IP, Source: core.RingSync{Sub: sub}}
 			select {
-			case m.Mll.MRequest <- subReq:
+			case m.MRequest <- subReq:
 			default:
-				go func() { m.Mll.MRequest <- subReq }()
+				go func() { m.MRequest <- subReq }()
 			}
 		}
 	})

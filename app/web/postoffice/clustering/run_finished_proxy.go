@@ -16,7 +16,7 @@ func (c *DataServiceProvider) runFinished(t *protocol.Meta) (*protocol.Response,
 	}
 	rq := make(chan []core.Node, 3)
 	defer close(rq)
-	c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: t.Prefix, Replicas: REPLICA_MAX, Async: rq}
+	c.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: t.Prefix, Replicas: REPLICA_MAX, Async: rq}
 	nodes := <-rq
 	ringNode := nodes[0]
 	if ringNode.RpcEndpoint == c.rpcEndpoint {

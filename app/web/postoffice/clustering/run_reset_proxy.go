@@ -19,7 +19,7 @@ func (c *DataServiceProvider) runReset(set *protocol.Request) (*protocol.Respons
 	}
 	retry := RetryTrack{Reties: RETRY_MAX}
 	for retry.Reties > 0 {
-		c.Mll.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: rt, Replicas: REPLICA_MAX, Async: rq}
+		c.MRequest <- core.RingRequest{Opt: REPLICA_RING_OPT, Token: rt, Replicas: REPLICA_MAX, Async: rq}
 		nodes := <-rq
 		ringNode := nodes[0]
 		resp, _ := c.clientReset(&ringNode, set)
