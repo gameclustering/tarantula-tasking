@@ -132,3 +132,20 @@ loop:
 		}
 	}
 }
+
+func TestSelectSend(t *testing.T) {
+	ch1 := make(chan int, 10)
+	for i := range 10 {
+		ch1 <- i
+	}
+	//var ch1, ch2 chan int
+	//close(ch1)
+	//close(ch2)
+	select {
+	case ch1 <- 19:
+		fmt.Printf("x to ch1 >> %d\n", 19)
+	default:
+		fmt.Println("go to no data send due to chan is full")
+	}
+
+}
