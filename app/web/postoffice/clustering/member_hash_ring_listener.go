@@ -131,6 +131,7 @@ func (m *MemberHashRingListener) balanceOnNodeRemoved(removed []core.Node) {
 }
 
 func (m *MemberHashRingListener) registerSubscription(sub core.Subscription) {
+	core.AppLog.Debug().Msgf("register sub %v", sub)
 	if sub.Type == core.TRANS_MAIL && !strings.HasPrefix(sub.Topic, TRANS_SUB_PREFIX) {
 		sub.Topic = fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, sub.Topic)
 	}
@@ -378,8 +379,12 @@ func (m *MemberHashRingListener) localNode(node core.Node) bool {
 
 // memberlist callbacks
 func (m *MemberHashRingListener) NodeAdded(added core.Node) {
-
-	m.nRequest <- NodeRequest{opt: NODE_ADDED, node: added}
+	core.AppLog.Warn().Msgf("add node %v", added)
+	select {
+	case m.nRequest <- NodeRequest{opt: NODE_ADDED, node: added}:
+	default:
+		core.AppLog.Warn().Msgf("something wrong!!! %d", len(m.nRequest))
+	}
 }
 func (m *MemberHashRingListener) NodeRemoved(removed core.Node) {
 

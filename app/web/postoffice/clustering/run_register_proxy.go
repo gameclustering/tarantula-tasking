@@ -18,11 +18,17 @@ func (c *DataServiceProvider) runRegister(sub *protocol.Subscription) (*protocol
 		cpool.Start()
 		conn, err := cpool.Conn()
 		if err != nil {
+			core.AppLog.Debug().Msgf("connect failed %s", err.Error())
 			continue
 		}
+		defer cpool.Shutdown()
 		dsp := protocol.NewDataServiceClient(conn.Conn)
-		dsp.Regsiter(context.Background(), sub)
-		cpool.Shutdown()
+		resp, err := dsp.Register(context.Background(), sub)
+		if err != nil {
+			core.AppLog.Debug().Msgf("connect failed %s", err.Error())
+			continue
+		}
+		core.AppLog.Debug().Msgf("resgiter status %v", resp.Successful)
 	}
 	return &protocol.Response{Successful: true}, nil
 }

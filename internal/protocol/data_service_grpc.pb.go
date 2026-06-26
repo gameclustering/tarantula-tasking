@@ -27,7 +27,7 @@ const (
 	DataService_Update_FullMethodName     = "/protocol.DataService/update"
 	DataService_Delete_FullMethodName     = "/protocol.DataService/delete"
 	DataService_Send_FullMethodName       = "/protocol.DataService/send"
-	DataService_Regsiter_FullMethodName   = "/protocol.DataService/regsiter"
+	DataService_Register_FullMethodName   = "/protocol.DataService/register"
 	DataService_Unregister_FullMethodName = "/protocol.DataService/unregister"
 )
 
@@ -43,7 +43,7 @@ type DataServiceClient interface {
 	Update(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Delete(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Send(ctx context.Context, in *Topic, opts ...grpc.CallOption) (*Response, error)
-	Regsiter(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error)
+	Register(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error)
 	Unregister(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error)
 }
 
@@ -153,10 +153,10 @@ func (c *dataServiceClient) Send(ctx context.Context, in *Topic, opts ...grpc.Ca
 	return out, nil
 }
 
-func (c *dataServiceClient) Regsiter(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error) {
+func (c *dataServiceClient) Register(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Response)
-	err := c.cc.Invoke(ctx, DataService_Regsiter_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, DataService_Register_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ type DataServiceServer interface {
 	Update(context.Context, *Request) (*Response, error)
 	Delete(context.Context, *Request) (*Response, error)
 	Send(context.Context, *Topic) (*Response, error)
-	Regsiter(context.Context, *Subscription) (*Response, error)
+	Register(context.Context, *Subscription) (*Response, error)
 	Unregister(context.Context, *Subscription) (*Response, error)
 	mustEmbedUnimplementedDataServiceServer()
 }
@@ -221,8 +221,8 @@ func (UnimplementedDataServiceServer) Delete(context.Context, *Request) (*Respon
 func (UnimplementedDataServiceServer) Send(context.Context, *Topic) (*Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method Send not implemented")
 }
-func (UnimplementedDataServiceServer) Regsiter(context.Context, *Subscription) (*Response, error) {
-	return nil, status.Error(codes.Unimplemented, "method Regsiter not implemented")
+func (UnimplementedDataServiceServer) Register(context.Context, *Subscription) (*Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method Register not implemented")
 }
 func (UnimplementedDataServiceServer) Unregister(context.Context, *Subscription) (*Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method Unregister not implemented")
@@ -378,20 +378,20 @@ func _DataService_Send_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataService_Regsiter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _DataService_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Subscription)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataServiceServer).Regsiter(ctx, in)
+		return srv.(DataServiceServer).Register(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DataService_Regsiter_FullMethodName,
+		FullMethod: DataService_Register_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataServiceServer).Regsiter(ctx, req.(*Subscription))
+		return srv.(DataServiceServer).Register(ctx, req.(*Subscription))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -446,8 +446,8 @@ var DataService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DataService_Send_Handler,
 		},
 		{
-			MethodName: "regsiter",
-			Handler:    _DataService_Regsiter_Handler,
+			MethodName: "register",
+			Handler:    _DataService_Register_Handler,
 		},
 		{
 			MethodName: "unregister",

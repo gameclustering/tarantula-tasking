@@ -34,7 +34,7 @@ const file_data_service_proto_rawDesc = "" +
 	"\x06update\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x00\x121\n" +
 	"\x06delete\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x00\x12-\n" +
 	"\x04send\x12\x0f.protocol.Topic\x1a\x12.protocol.Response\"\x00\x128\n" +
-	"\bregsiter\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00\x12:\n" +
+	"\bregister\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00\x12:\n" +
 	"\n" +
 	"unregister\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00BS\n" +
 	"\x17com.icodesoftware.protoB\x12DataServiceFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
@@ -54,7 +54,7 @@ var file_data_service_proto_depIdxs = []int32{
 	0,  // 5: protocol.DataService.update:input_type -> protocol.Request
 	0,  // 6: protocol.DataService.delete:input_type -> protocol.Request
 	1,  // 7: protocol.DataService.send:input_type -> protocol.Topic
-	2,  // 8: protocol.DataService.regsiter:input_type -> protocol.Subscription
+	2,  // 8: protocol.DataService.register:input_type -> protocol.Subscription
 	2,  // 9: protocol.DataService.unregister:input_type -> protocol.Subscription
 	3,  // 10: protocol.DataService.query:output_type -> protocol.Response
 	3,  // 11: protocol.DataService.get:output_type -> protocol.Response
@@ -64,7 +64,7 @@ var file_data_service_proto_depIdxs = []int32{
 	3,  // 15: protocol.DataService.update:output_type -> protocol.Response
 	3,  // 16: protocol.DataService.delete:output_type -> protocol.Response
 	3,  // 17: protocol.DataService.send:output_type -> protocol.Response
-	3,  // 18: protocol.DataService.regsiter:output_type -> protocol.Response
+	3,  // 18: protocol.DataService.register:output_type -> protocol.Response
 	3,  // 19: protocol.DataService.unregister:output_type -> protocol.Response
 	10, // [10:20] is the sub-list for method output_type
 	0,  // [0:10] is the sub-list for method input_type

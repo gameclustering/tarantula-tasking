@@ -139,9 +139,9 @@ running:
 	core.AppLog.Info().Msg("local member list listener has stopped")
 }
 
-func (m *MemberListListener) rangeRing(r core.RingRequest) {
+//func (m *MemberListListener) rangeRing(r core.RingRequest) {
 	//m.MRequest <- r
-}
-func (m *MemberListListener) localNode(node core.Node) bool {
-	return strings.HasPrefix(node.Name, m.LocalNode().Name)
-}
+//}
+//func (m *MemberListListener) localNode(node core.Node) bool {
+	//return strings.HasPrefix(node.Name, m.LocalNode().Name)
+//}

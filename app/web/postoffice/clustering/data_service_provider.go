@@ -145,10 +145,15 @@ func (c *DataServiceProvider) Send(ctx context.Context, in *protocol.Topic) (*pr
 }
 
 func (c *DataServiceProvider) Register(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
+	core.AppLog.Debug().Msgf("register sub %v", in)
 	sub := core.Subscription{}
 	sub.FromProto(in)
 	sub.Deleting = false
-	c.sRquest <- RegisterRequest{sub: sub}
+	select {
+	case c.sRquest <- RegisterRequest{sub: sub}:
+	default:
+		core.AppLog.Warn().Msg("oops channel is full")
+	}
 	return &protocol.Response{Successful: true}, nil
 }
 

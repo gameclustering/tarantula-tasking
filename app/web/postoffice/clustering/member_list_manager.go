@@ -97,10 +97,10 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	mll := MemberHashRingListener{DSP}
 
 	m.memberListChangeListener = &mll
-	go m.Listen()
 	DSP.DWait.Add(1)
 	go DSP.Start(m.StoreDir, m.Ctx)
 	DSP.DWait.Wait()
+	go m.Listen()
 	time.Sleep(3 * time.Second)
 	go mll.RingUpdated()
 	joined, err := list.Join(m.Seed)
@@ -109,7 +109,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 		return err
 	}
 	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, DSP.rpcEndpoint)
-	go DSP.recoverTasks()
+	//go DSP.recoverTasks()
 	return nil
 }
 
