@@ -177,7 +177,11 @@ running:
 			case NODE_UPDATED:
 				m.OnUpdate(nr.node)
 			}
-
+		case reg, ok := <-m.sRquest:
+			if !ok {
+				break running
+			}
+			m.registerSubscription(reg.sub)
 		case sync, ok := <-m.RSync:
 			if !ok {
 				break running

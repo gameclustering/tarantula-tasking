@@ -31,8 +31,8 @@ const (
 	TRANSACTION_MODE_CONCURRENT uint32 = 0
 	TRANSACTION_MODE_SEQUENCE   uint32 = 1
 
-	CERT_NAME         string = "./domain.crt"
-	
+	CERT_NAME string = "./domain.crt"
+
 	RPC_TICKET_HEADER string = "ticket"
 )
 
@@ -96,6 +96,24 @@ func (s *Subscription) Key() string {
 }
 func (s *Subscription) TopicKey() TopicKey {
 	return TopicKey{Topic: s.Topic, Endpoint: s.Endpoint}
+}
+func (s *Subscription) ToProto() *protocol.Subscription {
+	sub := protocol.Subscription{}
+	sub.Opt = s.Type
+	sub.NodeId = s.NodeId
+	sub.Tag = s.Tag
+	sub.Name = s.Topic
+	sub.Deleting = s.Deleting
+	sub.Endpoint = s.Endpoint
+	return &sub
+}
+func (s *Subscription) FromProto(sub *protocol.Subscription) {
+	s.Type = sub.Opt
+	s.NodeId = sub.NodeId
+	s.Tag = sub.Tag
+	s.Topic = sub.Name
+	s.Deleting = sub.Deleting
+	s.Endpoint = sub.Endpoint
 }
 
 type RingSync struct {

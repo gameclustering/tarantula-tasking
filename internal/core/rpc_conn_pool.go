@@ -130,6 +130,16 @@ func (p *RpcConnPool) Conn() (*RpcConn, error) {
 	}
 	return c, nil
 }
+
+func (p *RpcConnPool) Shutdown() {
+	p.Lock()
+	defer p.Unlock()
+	for _, c := range p.pool {
+		c.Conn.Close()
+	}
+	clear(p.pool)
+}
+
 func (p *RpcConnPool) Release() {
 	p.Lock()
 	defer p.Unlock()
@@ -149,7 +159,7 @@ func (p *RpcConnPool) OnCall(ctx context.Context, method string, req, replay any
 	if p.Auth == nil {
 		AppLog.Warn().Msgf("no auth setup streaming before :%s", method)
 		return invoker(ctx, method, req, replay, cc, opts...)
-	} 
+	}
 	err := invoker(p.setup(ctx), method, req, replay, cc, opts...)
 	return err
 }

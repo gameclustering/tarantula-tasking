@@ -54,8 +54,8 @@ type DataServiceProvider struct {
 	DRequest     chan TopicRequest
 	MRequest     chan core.RingRequest //ring request
 	nRequest     chan NodeRequest      //node event
-
-	MSync chan<- []byte
+	sRquest      chan RegisterRequest  //sub event
+	MSync        chan<- []byte
 
 	//task transaction
 	TManager *TaskManager
@@ -145,12 +145,18 @@ func (c *DataServiceProvider) Send(ctx context.Context, in *protocol.Topic) (*pr
 }
 
 func (c *DataServiceProvider) Register(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
-
+	sub := core.Subscription{}
+	sub.FromProto(in)
+	sub.Deleting = false
+	c.sRquest <- RegisterRequest{sub: sub}
 	return &protocol.Response{Successful: true}, nil
 }
 
 func (c *DataServiceProvider) Unregister(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
-
+	sub := core.Subscription{}
+	sub.FromProto(in)
+	sub.Deleting = true
+	c.sRquest <- RegisterRequest{sub: sub}
 	return &protocol.Response{Successful: true}, nil
 }
 
@@ -174,6 +180,7 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	c.DRequest = make(chan TopicRequest, NODE_EVENT_BUFFER_SIZE)
 	c.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
 	c.nRequest = make(chan NodeRequest, NODE_EVENT_BUFFER_SIZE)
+	c.sRquest = make(chan RegisterRequest, NODE_EVENT_BUFFER_SIZE)
 	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
 	c.RSync = rwSync
 	c.MSync = rwSync
