@@ -126,10 +126,10 @@ func (m *MemberHashRingListener) balanceOnNodeRemoved(removed []core.Node) {
 	}
 	slices.SortFunc(m.backRing.nodes, cmp)
 	m.backRing.nodeNum--
+
 }
 
 func (m *MemberHashRingListener) registerSubscription(sub core.Subscription) {
-	core.AppLog.Debug().Msgf("register sub %v", sub)
 	if sub.Type == core.TRANS_MAIL && !strings.HasPrefix(sub.Topic, TRANS_SUB_PREFIX) {
 		sub.Topic = fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, sub.Topic)
 	}
