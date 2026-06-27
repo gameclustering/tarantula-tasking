@@ -20,7 +20,7 @@ const (
 type MemberlistManager struct {
 	Seed []string
 	MemberListListener
-
+	dsp           *DataServiceProvider
 	StoreDir      string
 	Ctx           string
 	Binding       string
@@ -43,11 +43,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	m.mAlive = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.mPing = make(chan core.Node, NODE_EVENT_BUFFER_SIZE)
 	m.mConflict = make(chan []core.Node, NODE_EVENT_BUFFER_SIZE)
-	//m.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
 
-	//rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
-
-	//m.MSync = rwSync
 	cfg.Events = &cl
 	cfg.Delegate = m
 	cfg.Ping = m
@@ -87,14 +83,14 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	// Start Listen after caCert is set: memberlist.Create fires NodeJoin for the local node
 	// into the buffered channel; starting Listen before caCert is set means OnAdd runs with
 	// nil CACert, producing an RpcConnPool that fails TLS handshakes.
-	DSP := &DataServiceProvider{seq: seq, vault: vt, auth: auth}
+	DSP := DataServiceProvider{seq: seq, vault: vt, auth: auth}
 	DSP.MemberHashRing = &memberHashRing
 	DSP.TLSCert = tlsCert
 	DSP.CACert = []byte(ak.Cert)
 	DSP.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
 	DSP.Memberlist = list
-	//DSP.Mll = MemberListListenerExporter{&m.MemberListListener}
-	mll := MemberHashRingListener{DSP}
+	m.dsp = &DSP
+	mll := MemberHashRingListener{&DSP}
 
 	m.memberListChangeListener = &mll
 	DSP.DWait.Add(1)
@@ -109,19 +105,16 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 		return err
 	}
 	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, DSP.rpcEndpoint)
-	//go DSP.recoverTasks()
+	go DSP.recoverTasks()
 	return nil
 }
 
 func (m *MemberlistManager) ShutdownHook() {
 	core.AppLog.Info().Msg("running shut down hook ...")
-	//m.DSP.running = false
 	m.Leave(3 * time.Second)
 	time.Sleep(3 * time.Second)
 	m.Shutdown()
 	core.AppLog.Info().Msg("closing resouces ...")
-	//m.MRequest <- core.RingRequest{Opt: CLOSE_RING_OPT}
-	//m.DSP.running = false
 
 	time.Sleep(3 * time.Second)
 	close(m.mEvent)
@@ -129,9 +122,7 @@ func (m *MemberlistManager) ShutdownHook() {
 	close(m.mPing)
 	close(m.mMerge)
 	close(m.mConflict)
-	//close(m.MRequest)
-	//close(m.WNode)
-	//close(m.MSync)
+	m.dsp.shuwdownHook()
 	core.AppLog.Info().Msg("shut down has done successfully.")
 }
 
@@ -144,11 +135,7 @@ func (m *MemberListListener) NodeMeta(limit int) []byte {
 }
 
 func (m *MemberListListener) NotifyMsg(msg []byte) {
-	//select {
-	//case m.MSync <- msg:
-	//default:
-	//core.AppLog.Warn().Msgf("NotifyMsg: MSync full, dropping subscription sync message")
-	//}
+	//callback from send
 }
 
 func (m *MemberListListener) GetBroadcasts(overhead, limit int) [][]byte {

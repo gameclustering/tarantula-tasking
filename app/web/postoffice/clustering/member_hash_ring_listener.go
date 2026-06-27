@@ -10,6 +10,9 @@ import (
 )
 
 const (
+	REPLICA_RING_OPT uint32 = 1
+	ALL_RING_OPT     uint32 = 3
+
 	RECEIVER_START  uint32 = 1
 	TOPIC_REGISTER  uint32 = 2
 	RECEIVER_REMOVE uint32 = 3
@@ -299,10 +302,6 @@ running:
 	}
 	//shutdown server
 	close(m.shutdown)
-	for range SET_OPERATOR_NUM {
-		m.DSet <- SetData{Opt: core.SET_OPT_CLOSE}
-	}
-	close(m.DSet)
 	m.server.Stop()
 	m.Local.Close()
 	core.AppLog.Info().Msg("local member hash ring listener has stopped")

@@ -10,6 +10,12 @@ import (
 	"gameclustering.com/internal/util"
 )
 
+const (
+	NODE_STATE_LIVE = 0
+	NODE_STATE_DEAD = 3
+	//NODE_STATE_SHUTDOWN = -1000
+)
+
 type MemberListChangeListener interface {
 	NodeAdded(added core.Node)
 	NodeRemoved(removed core.Node)

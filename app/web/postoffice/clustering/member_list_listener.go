@@ -8,17 +8,7 @@ import (
 	"github.com/hashicorp/memberlist"
 )
 
-const (
-	REPLICA_RING_OPT uint32 = 1
-	ALL_RING_OPT     uint32 = 3
 
-	//SYNC_NODE_OPT uint32 = 8
-	//SYNC_SUB_OPT  uint32 = 9
-
-	NODE_STATE_LIVE     = 0
-	NODE_STATE_DEAD     = 3
-	NODE_STATE_SHUTDOWN = -1000
-)
 
 type RetryTrack struct {
 	Err    string

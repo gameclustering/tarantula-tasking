@@ -31,9 +31,8 @@ type DataServiceProvider struct {
 	protocol.UnimplementedTransactionServiceServer
 	Local *persistence.BadgerLocal
 
-	RSync  <-chan []byte
 	server *grpc.Server
-	//Mll         MemberListListenerExporter
+
 	backRing    NodeRing
 	rpcEndpoint string
 	TLSCert     tls.Certificate // leaf cert generated at startup for the gRPC server
@@ -41,7 +40,6 @@ type DataServiceProvider struct {
 	seq         core.Sequence
 	auth        core.Authenticator
 	//write worker chan
-	DSet     chan SetData
 	DWait    sync.WaitGroup
 	running  bool
 	shutdown chan struct{}
@@ -56,7 +54,6 @@ type DataServiceProvider struct {
 	MRequest     chan core.RingRequest //ring request
 	nRequest     chan NodeRequest      //node event
 	sRquest      chan RegisterRequest  //sub event
-	MSync        chan<- []byte
 
 	//task transaction
 	TManager *TaskManager
@@ -88,48 +85,64 @@ func (c *DataServiceProvider) Query(request *protocol.Request, stream grpc.Serve
 }
 
 func (c *DataServiceProvider) Reset(ctx context.Context, in *protocol.Request) (*protocol.Response, error) {
-	msg := make(chan *protocol.Response, 1)
-	defer close(msg)
-	setData := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data, Resp: msg}
-	c.DSet <- setData
-	resp := <-msg
-	return resp, nil
+	sd := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data}
+	if sd.Prefix == 0 {
+		sd.Prefix = c.RingToken(sd.Key)
+	}
+	ki, err := c.reset(sd)
+	if err != nil {
+		return &protocol.Response{Successful: false, Message: err.Error()},err
+	} else {
+		var data []*protocol.Data
+		data = append(data, &protocol.Data{Header: &protocol.Header{Revision: ki.Header.Revision}})
+		return &protocol.Response{Successful: true, Data: &protocol.DataSet{List: data}},nil
+	}
 }
 
 func (c *DataServiceProvider) Create(ctx context.Context, in *protocol.Request) (*protocol.Response, error) {
-	msg := make(chan *protocol.Response, 1)
-	defer close(msg)
-	setData := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data, Resp: msg}
-	if setData.Prefix == 0 {
-		setData.Prefix = c.RingToken(setData.Key)
+	sd := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data}
+	if sd.Prefix == 0 {
+		sd.Prefix = c.RingToken(sd.Key)
 	}
-	c.DSet <- setData
-	resp := <-msg
-	return resp, nil
+	ki, err := c.create(sd)
+	if err != nil {
+		return &protocol.Response{Successful: false, Message: err.Error()}, err
+	} else {
+		var data []*protocol.Data
+		data = append(data, &protocol.Data{Header: &protocol.Header{Revision: ki.Header.Revision}})
+		return &protocol.Response{Successful: true, Data: &protocol.DataSet{List: data}}, nil
+	}
 }
 
 func (c *DataServiceProvider) Update(ctx context.Context, in *protocol.Request) (*protocol.Response, error) {
-	msg := make(chan *protocol.Response, 1)
-	defer close(msg)
-	setData := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data, Resp: msg}
-	if setData.Prefix == 0 {
-		c.RingToken(setData.Key)
+	sd := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data}
+	if sd.Prefix == 0 {
+		c.RingToken(sd.Key)
 	}
-	c.DSet <- setData
-	resp := <-msg
-	return resp, nil
+	ki, err := c.update(sd)
+	if err != nil {
+		return &protocol.Response{Successful: false, Message: err.Error()}, err
+	} else {
+		var data []*protocol.Data
+		data = append(data, &protocol.Data{Header: &protocol.Header{Revision: ki.Header.Revision}})
+		return &protocol.Response{Successful: true, Data: &protocol.DataSet{List: data}}, nil
+	}
 }
 
 func (c *DataServiceProvider) Delete(ctx context.Context, in *protocol.Request) (*protocol.Response, error) {
-	msg := make(chan *protocol.Response, 1)
-	defer close(msg)
-	setData := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data, Resp: msg}
-	if setData.Prefix == 0 {
-		c.RingToken(setData.Key)
+	sd := SetData{Opt: in.Opt, Prefix: in.Prefix, Data: in.Data}
+	if sd.Prefix == 0 {
+		c.RingToken(sd.Key)
 	}
-	c.DSet <- setData
-	resp := <-msg
-	return resp, nil
+	ki, err := c.delete(sd)
+	if err != nil {
+		return &protocol.Response{Successful: false, Message: err.Error()}, nil
+	} else {
+		var data []*protocol.Data
+		data = append(data, &protocol.Data{Header: &protocol.Header{Revision: ki.Header.Revision}})
+		return &protocol.Response{Successful: true, Data: &protocol.DataSet{List: data}}, nil
+	}
+
 }
 
 func (c *DataServiceProvider) SyncRingRange(request *protocol.RingRange, stream grpc.ServerStreamingServer[protocol.Response]) error {
@@ -210,17 +223,11 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	c.MRequest = make(chan core.RingRequest, NODE_EVENT_BUFFER_SIZE)
 	c.nRequest = make(chan NodeRequest, NODE_EVENT_BUFFER_SIZE)
 	c.sRquest = make(chan RegisterRequest, NODE_EVENT_BUFFER_SIZE)
-	rwSync := make(chan []byte, NODE_EVENT_BUFFER_SIZE*16) // larger buffer for burst absorption
-	c.RSync = rwSync
-	c.MSync = rwSync
+
 	c.listeners = make(map[string]ReceiverAsync) //chan *protocol.Topic)
 	c.listenerPool = make([]string, 0)
 	c.subscriptions = SubscriptionRegistry{topicEnds: make(map[core.TopicKey]map[string]core.Subscription), cPools: make(map[core.TopicKey]*core.RpcConnPool), roundIdx: make(map[string]int), auth: c.auth, caCert: c.CACert}
 
-	c.DSet = make(chan SetData, NODE_EVENT_BUFFER_SIZE)
-	for n := range SET_OPERATOR_NUM {
-		go c.runSetData(n)
-	}
 	c.TManager = &TaskManager{
 		trs:        make(map[uint64]*TaskResource),
 		tjs:        make(map[uint64]*JobResource),
@@ -292,4 +299,13 @@ func (c *DataServiceProvider) runSyncRingRange(conn *grpc.ClientConn, in *protoc
 		c.set(data)
 	}
 	return subtotal, nil
+}
+
+func (c *DataServiceProvider) shuwdownHook() {
+	core.AppLog.Warn().Msg("running data service provider shutdown hook ...")
+	close(c.nRequest)
+	close(c.sRquest)
+	close(c.MRequest)
+	close(c.DMessager)
+	close(c.DRequest)
 }

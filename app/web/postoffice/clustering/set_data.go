@@ -11,7 +11,6 @@ type SetData struct {
 	*protocol.Data
 	Prefix uint32
 	Opt    uint32
-	Resp   chan *protocol.Response
 }
 
 // HELPER METHODS
