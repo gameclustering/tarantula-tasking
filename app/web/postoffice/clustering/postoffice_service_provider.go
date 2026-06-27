@@ -113,17 +113,11 @@ func (c *DataServiceProvider) Publish(ctx context.Context, in *protocol.Topic) (
 
 func (c *DataServiceProvider) Subscribe(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
 	sub := protocol.Subscription{Opt: in.Opt, NodeId: in.NodeId, Tag: in.Tag, Name: in.Name, Endpoint: c.rpcEndpoint}
-	// Register locally immediately via MSync — avoids relying on the memberlist self-loopback.
-	//c.Mll.MSync <- util.ToJson(core.RingSync{Sub: sub})
-	// Broadcast to all cluster members.
-	//c.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
-	return c.runRegister(&sub) //&protocol.Response{Successful: true, Message: "topic created"}, nil
+	return c.runRegister(&sub)
 }
 func (c *DataServiceProvider) Unsubscribe(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
 	sub := protocol.Subscription{Opt: in.Opt, NodeId: in.NodeId, Tag: in.Tag, Name: in.Name, Endpoint: c.rpcEndpoint, Deleting: true}
-	//c.Mll.MSync <- util.ToJson(core.RingSync{Sub: sub})
-	//c.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: sub}}
-	return c.runUnregister(&sub) //&protocol.Response{Successful: true, Message: "topic removed"}, nil
+	return c.runUnregister(&sub)
 }
 
 func (c *DataServiceProvider) Request(ctx context.Context, request *protocol.Request) (*protocol.Response, error) {
