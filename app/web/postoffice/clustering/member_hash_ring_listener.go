@@ -126,7 +126,11 @@ func (m *MemberHashRingListener) balanceOnNodeRemoved(removed []core.Node) {
 	}
 	slices.SortFunc(m.backRing.nodes, cmp)
 	m.backRing.nodeNum--
-
+	m.subscriptions.lookup(func(sub core.Subscription) {
+		if sub.Endpoint == removed[0].RpcEndpoint {
+			m.subscriptions.del(sub)
+		}
+	})
 }
 
 func (m *MemberHashRingListener) registerSubscription(sub core.Subscription) {
