@@ -89,7 +89,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 	DSP.CACert = []byte(ak.Cert)
 	DSP.rpcEndpoint = fmt.Sprintf("%s:%d", advertiseIP, core.RPC_PORT)
 	DSP.Memberlist = list
-	m.dsp = &DSP
+	m.dsp = &DSP //assign for shuwdown hook run
 	mll := MemberHashRingListener{&DSP}
 
 	m.memberListChangeListener = &mll
