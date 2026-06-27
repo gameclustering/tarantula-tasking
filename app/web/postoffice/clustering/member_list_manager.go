@@ -105,7 +105,7 @@ func (m *MemberlistManager) Start(meta []byte, auth core.Authenticator, seq core
 		return err
 	}
 	core.AppLog.Info().Msgf("total nodes have joined %d on local node  %s", joined, DSP.rpcEndpoint)
-	go DSP.recoverTasks()
+	//go DSP.recoverTasks() might be good to be called on request intead of auto-recover
 	return nil
 }
 
