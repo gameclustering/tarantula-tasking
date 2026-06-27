@@ -4,6 +4,7 @@ import (
 	context "context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sync"
@@ -131,8 +132,8 @@ func (c *DataServiceProvider) Delete(ctx context.Context, in *protocol.Request) 
 	return resp, nil
 }
 
-func (c *DataServiceProvider) Pull(request *protocol.Request, stream grpc.ServerStreamingServer[protocol.Response]) error {
-	return c.pull(request.Prefix, request.Opt, stream)
+func (c *DataServiceProvider) SyncRingRange(request *protocol.RingRange, stream grpc.ServerStreamingServer[protocol.Response]) error {
+	return c.pull(request.From, request.To, stream)
 }
 
 func (c *DataServiceProvider) Send(ctx context.Context, in *protocol.Topic) (*protocol.Response, error) {
@@ -180,6 +181,11 @@ func (c *DataServiceProvider) SyncSubs(ctx context.Context, in *protocol.SubsSyn
 			core.AppLog.Warn().Msgf("oops channel is full %d", len(c.sRquest))
 		}
 	}
+	return &protocol.Response{Successful: true}, nil
+}
+
+func (c *DataServiceProvider) NotifyRingSync(ctx context.Context, in *protocol.RingSync) (*protocol.Response, error) {
+	go c.recoverFromNode(in)
 	return &protocol.Response{Successful: true}, nil
 }
 
@@ -242,4 +248,48 @@ func (c *DataServiceProvider) Start(dir string, ctx string) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (c *DataServiceProvider) recoverFromNode(ds *protocol.RingSync) {
+	cpool := core.RpcConnPool{Target: ds.Remote, Auth: c.auth, CACert: c.caCert}
+	cpool.Start()
+	conn, err := cpool.Conn()
+	if err != nil {
+		core.AppLog.Warn().Msgf("remote rpcs connection error from %s: %s", ds.Remote, err.Error())
+		return
+	}
+	defer cpool.Shutdown()
+
+	total := 0
+	for _, h := range ds.Ranges {
+		subtotal, err := c.runSyncRingRange(conn.Conn, h)
+		if err != nil {
+			core.AppLog.Warn().Msgf("recovery pull error from %s: %s", ds.Remote, err.Error())
+		}
+		total += subtotal
+	}
+	core.AppLog.Info().Msgf("recovery from %s complete, %d rows", ds.Remote, total)
+}
+
+func (c *DataServiceProvider) runSyncRingRange(conn *grpc.ClientConn, in *protocol.RingRange) (int, error) {
+	subtotal := 0
+	dsp := protocol.NewDataServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	stream, err := dsp.SyncRingRange(ctx, in)
+	if err != nil {
+		return 0, err
+	}
+	for {
+		data, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return subtotal, err
+		}
+		subtotal += len(data.Data.List)
+		c.set(data)
+	}
+	return subtotal, nil
 }

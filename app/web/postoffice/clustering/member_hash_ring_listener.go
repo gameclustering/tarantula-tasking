@@ -1,18 +1,12 @@
 package clustering
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/json"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
 
 	"gameclustering.com/internal/core"
 	"gameclustering.com/internal/protocol"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -80,14 +74,14 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 		return
 	}
 	slices.SortFunc(added, cmp)
-	ringSync := core.RingSync{Ranges: make([]core.RingRange, 0)}
+	ringSync := protocol.RingSync{Ranges: make([]*protocol.RingRange, 0)}
 	for _, n := range added {
 		if !m.localNode(n) { //skip node initial add call
 			ringRange := m.backRing.rangeOfRing(n.RingToken)
 			if m.localNode(ringRange[1]) {
 				ringSync.Remote = ringRange[1].RpcEndpoint
-				ringSync.Ranges = append(ringSync.Ranges, core.RingRange{From: ringRange[0].RingToken, To: n.RingToken})
-				core.AppLog.Debug().Msgf("push data key hash >= %d and < %d to remote node %s", ringRange[0].RingToken, n.RingToken, n.IP)
+				ringSync.Ranges = append(ringSync.Ranges, &protocol.RingRange{From: ringRange[0].RingToken, To: n.RingToken})
+				core.AppLog.Debug().Msgf("push data key hash >= %d and < %d to remote node %s", ringRange[0].RingToken, n.RingToken, added[0].RpcEndpoint)
 			}
 		}
 		m.backRing.nodes = append(m.backRing.nodes, n)
@@ -97,12 +91,7 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 	// Data range handoff only when this node owns ranges adjacent to the new node.
 
 	if len(ringSync.Ranges) > 0 {
-		nodeReq := core.RingRequest{Source: ringSync, Opt: SYNC_NODE_OPT, Address: added[0].IP}
-		select {
-		case m.MRequest <- nodeReq:
-		default:
-			go func() { m.MRequest <- nodeReq }()
-		}
+		go m.runNotifyRingSync(added[0].RpcEndpoint, &ringSync)
 	}
 	// Subscription sync is always needed: every node must push its subscriptions
 	// to the new node so it can route tasks correctly, regardless of ring ranges.
@@ -185,23 +174,7 @@ running:
 				break running
 			}
 			m.registerSubscription(reg.sub)
-		case sync, ok := <-m.RSync:
-			if !ok {
-				break running
-			}
-			var ds core.RingSync
-			err := json.Unmarshal(sync, &ds)
-			if err != nil {
-				core.AppLog.Warn().Msgf("cannot parse remote data from %s", string(sync))
-			} else {
-				if len(ds.Ranges) > 0 {
-					// Run recovery in a background goroutine so DSet workers
-					// remain available for normal Create/Update requests.
-					go m.recoverFromNode(ds)
-				} else {
-					m.registerSubscription(ds.Sub)
-				}
-			}
+
 		case mr, ok := <-m.MRequest:
 			if !ok {
 				break running
@@ -335,46 +308,6 @@ running:
 	core.AppLog.Info().Msg("local member hash ring listener has stopped")
 }
 
-// recoverFromNode pulls ring-partition data from ds.Remote in the background.
-// Runs in its own goroutine so DSet workers stay available for normal writes.
-func (m *MemberHashRingListener) recoverFromNode(ds core.RingSync) {
-	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM(m.CACert)
-	creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
-	p := core.RpcConnPool{Auth: m.auth}
-	tcp, err := grpc.NewClient(ds.Remote,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithUnaryInterceptor(p.OnCall),
-		grpc.WithStreamInterceptor(p.OnStreaming),
-	)
-	if err != nil {
-		core.AppLog.Warn().Msgf("recovery connect error from %s: %s", ds.Remote, err.Error())
-		return
-	}
-	defer tcp.Close()
-	total := 0
-	for _, h := range ds.Ranges {
-		req := protocol.Request{Prefix: h.From, Opt: h.To}
-		stream, err := m.runPull(tcp, &req)
-		if err != nil {
-			core.AppLog.Warn().Msgf("recovery pull error from %s: %s", ds.Remote, err.Error())
-			continue
-		}
-		for {
-			data, err := stream.Recv()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				core.AppLog.Warn().Msgf("recovery recv error from %s: %s", ds.Remote, err.Error())
-				break
-			}
-			total += len(data.Data.List)
-			m.set(data)
-		}
-	}
-	core.AppLog.Info().Msgf("recovery from %s complete, %d rows", ds.Remote, total)
-}
 func (m *MemberHashRingListener) localNode(node core.Node) bool {
 	return strings.HasPrefix(node.Name, m.LocalNode().Name)
 }

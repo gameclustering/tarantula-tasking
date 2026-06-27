@@ -19,17 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DataService_Query_FullMethodName      = "/protocol.DataService/query"
-	DataService_Get_FullMethodName        = "/protocol.DataService/get"
-	DataService_Reset_FullMethodName      = "/protocol.DataService/reset"
-	DataService_Pull_FullMethodName       = "/protocol.DataService/pull"
-	DataService_Create_FullMethodName     = "/protocol.DataService/create"
-	DataService_Update_FullMethodName     = "/protocol.DataService/update"
-	DataService_Delete_FullMethodName     = "/protocol.DataService/delete"
-	DataService_Send_FullMethodName       = "/protocol.DataService/send"
-	DataService_Register_FullMethodName   = "/protocol.DataService/register"
-	DataService_Unregister_FullMethodName = "/protocol.DataService/unregister"
-	DataService_SyncSubs_FullMethodName   = "/protocol.DataService/syncSubs"
+	DataService_Query_FullMethodName          = "/protocol.DataService/query"
+	DataService_Get_FullMethodName            = "/protocol.DataService/get"
+	DataService_Reset_FullMethodName          = "/protocol.DataService/reset"
+	DataService_Create_FullMethodName         = "/protocol.DataService/create"
+	DataService_Update_FullMethodName         = "/protocol.DataService/update"
+	DataService_Delete_FullMethodName         = "/protocol.DataService/delete"
+	DataService_Send_FullMethodName           = "/protocol.DataService/send"
+	DataService_Register_FullMethodName       = "/protocol.DataService/register"
+	DataService_Unregister_FullMethodName     = "/protocol.DataService/unregister"
+	DataService_SyncSubs_FullMethodName       = "/protocol.DataService/syncSubs"
+	DataService_NotifyRingSync_FullMethodName = "/protocol.DataService/notifyRingSync"
+	DataService_SyncRingRange_FullMethodName  = "/protocol.DataService/syncRingRange"
 )
 
 // DataServiceClient is the client API for DataService service.
@@ -39,7 +40,6 @@ type DataServiceClient interface {
 	Query(ctx context.Context, in *Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Response], error)
 	Get(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Reset(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
-	Pull(ctx context.Context, in *Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Response], error)
 	Create(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Update(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Delete(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
@@ -47,6 +47,8 @@ type DataServiceClient interface {
 	Register(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error)
 	Unregister(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error)
 	SyncSubs(ctx context.Context, in *SubsSync, opts ...grpc.CallOption) (*Response, error)
+	NotifyRingSync(ctx context.Context, in *RingSync, opts ...grpc.CallOption) (*Response, error)
+	SyncRingRange(ctx context.Context, in *RingRange, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Response], error)
 }
 
 type dataServiceClient struct {
@@ -95,25 +97,6 @@ func (c *dataServiceClient) Reset(ctx context.Context, in *Request, opts ...grpc
 	}
 	return out, nil
 }
-
-func (c *dataServiceClient) Pull(ctx context.Context, in *Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Response], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &DataService_ServiceDesc.Streams[1], DataService_Pull_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[Request, Response]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type DataService_PullClient = grpc.ServerStreamingClient[Response]
 
 func (c *dataServiceClient) Create(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -185,6 +168,35 @@ func (c *dataServiceClient) SyncSubs(ctx context.Context, in *SubsSync, opts ...
 	return out, nil
 }
 
+func (c *dataServiceClient) NotifyRingSync(ctx context.Context, in *RingSync, opts ...grpc.CallOption) (*Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Response)
+	err := c.cc.Invoke(ctx, DataService_NotifyRingSync_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataServiceClient) SyncRingRange(ctx context.Context, in *RingRange, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Response], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &DataService_ServiceDesc.Streams[1], DataService_SyncRingRange_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[RingRange, Response]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DataService_SyncRingRangeClient = grpc.ServerStreamingClient[Response]
+
 // DataServiceServer is the server API for DataService service.
 // All implementations must embed UnimplementedDataServiceServer
 // for forward compatibility.
@@ -192,7 +204,6 @@ type DataServiceServer interface {
 	Query(*Request, grpc.ServerStreamingServer[Response]) error
 	Get(context.Context, *Request) (*Response, error)
 	Reset(context.Context, *Request) (*Response, error)
-	Pull(*Request, grpc.ServerStreamingServer[Response]) error
 	Create(context.Context, *Request) (*Response, error)
 	Update(context.Context, *Request) (*Response, error)
 	Delete(context.Context, *Request) (*Response, error)
@@ -200,6 +211,8 @@ type DataServiceServer interface {
 	Register(context.Context, *Subscription) (*Response, error)
 	Unregister(context.Context, *Subscription) (*Response, error)
 	SyncSubs(context.Context, *SubsSync) (*Response, error)
+	NotifyRingSync(context.Context, *RingSync) (*Response, error)
+	SyncRingRange(*RingRange, grpc.ServerStreamingServer[Response]) error
 	mustEmbedUnimplementedDataServiceServer()
 }
 
@@ -218,9 +231,6 @@ func (UnimplementedDataServiceServer) Get(context.Context, *Request) (*Response,
 }
 func (UnimplementedDataServiceServer) Reset(context.Context, *Request) (*Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method Reset not implemented")
-}
-func (UnimplementedDataServiceServer) Pull(*Request, grpc.ServerStreamingServer[Response]) error {
-	return status.Error(codes.Unimplemented, "method Pull not implemented")
 }
 func (UnimplementedDataServiceServer) Create(context.Context, *Request) (*Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method Create not implemented")
@@ -242,6 +252,12 @@ func (UnimplementedDataServiceServer) Unregister(context.Context, *Subscription)
 }
 func (UnimplementedDataServiceServer) SyncSubs(context.Context, *SubsSync) (*Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method SyncSubs not implemented")
+}
+func (UnimplementedDataServiceServer) NotifyRingSync(context.Context, *RingSync) (*Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method NotifyRingSync not implemented")
+}
+func (UnimplementedDataServiceServer) SyncRingRange(*RingRange, grpc.ServerStreamingServer[Response]) error {
+	return status.Error(codes.Unimplemented, "method SyncRingRange not implemented")
 }
 func (UnimplementedDataServiceServer) mustEmbedUnimplementedDataServiceServer() {}
 func (UnimplementedDataServiceServer) testEmbeddedByValue()                     {}
@@ -310,17 +326,6 @@ func _DataService_Reset_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	return interceptor(ctx, in, info, handler)
 }
-
-func _DataService_Pull_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Request)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(DataServiceServer).Pull(m, &grpc.GenericServerStream[Request, Response]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type DataService_PullServer = grpc.ServerStreamingServer[Response]
 
 func _DataService_Create_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Request)
@@ -448,6 +453,35 @@ func _DataService_SyncSubs_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DataService_NotifyRingSync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RingSync)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataServiceServer).NotifyRingSync(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DataService_NotifyRingSync_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataServiceServer).NotifyRingSync(ctx, req.(*RingSync))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataService_SyncRingRange_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(RingRange)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DataServiceServer).SyncRingRange(m, &grpc.GenericServerStream[RingRange, Response]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DataService_SyncRingRangeServer = grpc.ServerStreamingServer[Response]
+
 // DataService_ServiceDesc is the grpc.ServiceDesc for DataService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -491,6 +525,10 @@ var DataService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "syncSubs",
 			Handler:    _DataService_SyncSubs_Handler,
 		},
+		{
+			MethodName: "notifyRingSync",
+			Handler:    _DataService_NotifyRingSync_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -499,8 +537,8 @@ var DataService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "pull",
-			Handler:       _DataService_Pull_Handler,
+			StreamName:    "syncRingRange",
+			Handler:       _DataService_SyncRingRange_Handler,
 			ServerStreams: true,
 		},
 	},
