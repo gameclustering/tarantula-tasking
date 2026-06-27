@@ -29,6 +29,7 @@ const (
 	DataService_Send_FullMethodName       = "/protocol.DataService/send"
 	DataService_Register_FullMethodName   = "/protocol.DataService/register"
 	DataService_Unregister_FullMethodName = "/protocol.DataService/unregister"
+	DataService_SyncSubs_FullMethodName   = "/protocol.DataService/syncSubs"
 )
 
 // DataServiceClient is the client API for DataService service.
@@ -45,6 +46,7 @@ type DataServiceClient interface {
 	Send(ctx context.Context, in *Topic, opts ...grpc.CallOption) (*Response, error)
 	Register(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error)
 	Unregister(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (*Response, error)
+	SyncSubs(ctx context.Context, in *SubsSync, opts ...grpc.CallOption) (*Response, error)
 }
 
 type dataServiceClient struct {
@@ -173,6 +175,16 @@ func (c *dataServiceClient) Unregister(ctx context.Context, in *Subscription, op
 	return out, nil
 }
 
+func (c *dataServiceClient) SyncSubs(ctx context.Context, in *SubsSync, opts ...grpc.CallOption) (*Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Response)
+	err := c.cc.Invoke(ctx, DataService_SyncSubs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DataServiceServer is the server API for DataService service.
 // All implementations must embed UnimplementedDataServiceServer
 // for forward compatibility.
@@ -187,6 +199,7 @@ type DataServiceServer interface {
 	Send(context.Context, *Topic) (*Response, error)
 	Register(context.Context, *Subscription) (*Response, error)
 	Unregister(context.Context, *Subscription) (*Response, error)
+	SyncSubs(context.Context, *SubsSync) (*Response, error)
 	mustEmbedUnimplementedDataServiceServer()
 }
 
@@ -226,6 +239,9 @@ func (UnimplementedDataServiceServer) Register(context.Context, *Subscription) (
 }
 func (UnimplementedDataServiceServer) Unregister(context.Context, *Subscription) (*Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method Unregister not implemented")
+}
+func (UnimplementedDataServiceServer) SyncSubs(context.Context, *SubsSync) (*Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncSubs not implemented")
 }
 func (UnimplementedDataServiceServer) mustEmbedUnimplementedDataServiceServer() {}
 func (UnimplementedDataServiceServer) testEmbeddedByValue()                     {}
@@ -414,6 +430,24 @@ func _DataService_Unregister_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DataService_SyncSubs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubsSync)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataServiceServer).SyncSubs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DataService_SyncSubs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataServiceServer).SyncSubs(ctx, req.(*SubsSync))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DataService_ServiceDesc is the grpc.ServiceDesc for DataService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -452,6 +486,10 @@ var DataService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "unregister",
 			Handler:    _DataService_Unregister_Handler,
+		},
+		{
+			MethodName: "syncSubs",
+			Handler:    _DataService_SyncSubs_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

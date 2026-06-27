@@ -145,23 +145,41 @@ func (c *DataServiceProvider) Send(ctx context.Context, in *protocol.Topic) (*pr
 }
 
 func (c *DataServiceProvider) Register(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
-	core.AppLog.Debug().Msgf("register sub %v", in)
 	sub := core.Subscription{}
 	sub.FromProto(in)
 	sub.Deleting = false
 	select {
 	case c.sRquest <- RegisterRequest{sub: sub}:
+		return &protocol.Response{Successful: true}, nil
 	default:
-		core.AppLog.Warn().Msg("oops channel is full")
+		core.AppLog.Warn().Msgf("oops channel is full %d", len(c.sRquest))
+		return &protocol.Response{Successful: false}, fmt.Errorf("channel full")
 	}
-	return &protocol.Response{Successful: true}, nil
 }
 
 func (c *DataServiceProvider) Unregister(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
 	sub := core.Subscription{}
 	sub.FromProto(in)
 	sub.Deleting = true
-	c.sRquest <- RegisterRequest{sub: sub}
+	select {
+	case c.sRquest <- RegisterRequest{sub: sub}:
+		return &protocol.Response{Successful: true}, nil
+	default:
+		core.AppLog.Warn().Msgf("oops channel is full %d", len(c.sRquest))
+		return &protocol.Response{Successful: false}, fmt.Errorf("channel full")
+	}
+}
+func (c *DataServiceProvider) SyncSubs(ctx context.Context, in *protocol.SubsSync) (*protocol.Response, error) {
+	for _, p := range in.Subs {
+		sub := core.Subscription{}
+		sub.FromProto(p)
+		sub.Deleting = false
+		select {
+		case c.sRquest <- RegisterRequest{sub: sub}:
+		default:
+			core.AppLog.Warn().Msgf("oops channel is full %d", len(c.sRquest))
+		}
+	}
 	return &protocol.Response{Successful: true}, nil
 }
 

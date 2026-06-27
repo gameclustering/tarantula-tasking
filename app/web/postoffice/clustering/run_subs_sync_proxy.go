@@ -10,23 +10,22 @@ import (
 	"gameclustering.com/internal/protocol"
 )
 
-func (c *DataServiceProvider) runRegister(sub *protocol.Subscription) (*protocol.Response, error) {
+func (c *DataServiceProvider) runSyncSubs(sub *protocol.SubsSync) (*protocol.Response, error) {
 	for _, m := range c.Members() {
 		if c.LocalNode().Address() == m.Address() {
-			c.Register(context.Background(), sub)
 			continue
 		}
 		parts := strings.Split(m.Address(), ":")
 		rpcEndpoint := fmt.Sprintf("%s:%d", parts[0], core.RPC_PORT)
-		if err := c._runRegister(rpcEndpoint, sub); err != nil {
-			core.AppLog.Debug().Msgf("register sub %s error on %s %s", sub.Name, rpcEndpoint, err.Error())
+		if err := c._runSyncSubs(rpcEndpoint, sub); err != nil {
+			core.AppLog.Debug().Msgf("sub sync error %s on %s", rpcEndpoint, err.Error())
 		}
 	}
 	return &protocol.Response{Successful: true}, nil
 }
 
-func (c *DataServiceProvider) _runRegister(target string, sub *protocol.Subscription) error {
-	core.AppLog.Debug().Msgf("register subscription %s on %s", sub.Name, target)
+func (c *DataServiceProvider) _runSyncSubs(target string, sub *protocol.SubsSync) error {
+	core.AppLog.Debug().Msgf("sync subs on to %s", target)
 	cpool := core.RpcConnPool{Target: target, Auth: c.auth, CACert: c.caCert}
 	cpool.Start()
 	conn, err := cpool.Conn()
@@ -37,7 +36,7 @@ func (c *DataServiceProvider) _runRegister(target string, sub *protocol.Subscrip
 	dsp := protocol.NewDataServiceClient(conn.Conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err = dsp.Register(ctx, sub)
+	_, err = dsp.SyncSubs(ctx, sub)
 	if err != nil {
 		return err
 	}

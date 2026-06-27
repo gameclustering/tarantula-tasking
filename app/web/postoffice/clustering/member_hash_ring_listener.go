@@ -106,17 +106,15 @@ func (m *MemberHashRingListener) balanceOnNodeAdded(added []core.Node) {
 	}
 	// Subscription sync is always needed: every node must push its subscriptions
 	// to the new node so it can route tasks correctly, regardless of ring ranges.
-	/**
+	subsync := protocol.SubsSync{Subs: make([]*protocol.Subscription, 0)}
 	m.subscriptions.lookup(func(sub core.Subscription) {
 		if sub.Endpoint == m.rpcEndpoint {
-			subReq := core.RingRequest{Opt: SYNC_SUB_OPT, Address: added[0].IP, Source: core.RingSync{Sub: sub}}
-			select {
-			case m.MRequest <- subReq:
-			default:
-				go func() { m.MRequest <- subReq }()
-			}
+			subsync.Subs = append(subsync.Subs, sub.ToProto())
 		}
-	})**/
+	})
+	if len(subsync.Subs) > 0 {
+		go m.runSyncSubs(&subsync)
+	}
 }
 
 func (m *MemberHashRingListener) balanceOnNodeRemoved(removed []core.Node) {

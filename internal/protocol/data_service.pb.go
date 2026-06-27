@@ -24,7 +24,7 @@ var File_data_service_proto protoreflect.FileDescriptor
 
 const file_data_service_proto_rawDesc = "" +
 	"\n" +
-	"\x12data_service.proto\x12\bprotocol\x1a\rrequest.proto\x1a\x0eresponse.proto\x1a\vtopic.proto\x1a\x12subscription.proto2\x94\x04\n" +
+	"\x12data_service.proto\x12\bprotocol\x1a\rrequest.proto\x1a\x0eresponse.proto\x1a\vtopic.proto\x1a\x12subscription.proto\x1a\x0fsubs_sync.proto2\xca\x04\n" +
 	"\vDataService\x122\n" +
 	"\x05query\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x000\x01\x12.\n" +
 	"\x03get\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x00\x120\n" +
@@ -36,14 +36,16 @@ const file_data_service_proto_rawDesc = "" +
 	"\x04send\x12\x0f.protocol.Topic\x1a\x12.protocol.Response\"\x00\x128\n" +
 	"\bregister\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00\x12:\n" +
 	"\n" +
-	"unregister\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00BS\n" +
+	"unregister\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00\x124\n" +
+	"\bsyncSubs\x12\x12.protocol.SubsSync\x1a\x12.protocol.Response\"\x00BS\n" +
 	"\x17com.icodesoftware.protoB\x12DataServiceFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
 
 var file_data_service_proto_goTypes = []any{
 	(*Request)(nil),      // 0: protocol.Request
 	(*Topic)(nil),        // 1: protocol.Topic
 	(*Subscription)(nil), // 2: protocol.Subscription
-	(*Response)(nil),     // 3: protocol.Response
+	(*SubsSync)(nil),     // 3: protocol.SubsSync
+	(*Response)(nil),     // 4: protocol.Response
 }
 var file_data_service_proto_depIdxs = []int32{
 	0,  // 0: protocol.DataService.query:input_type -> protocol.Request
@@ -56,18 +58,20 @@ var file_data_service_proto_depIdxs = []int32{
 	1,  // 7: protocol.DataService.send:input_type -> protocol.Topic
 	2,  // 8: protocol.DataService.register:input_type -> protocol.Subscription
 	2,  // 9: protocol.DataService.unregister:input_type -> protocol.Subscription
-	3,  // 10: protocol.DataService.query:output_type -> protocol.Response
-	3,  // 11: protocol.DataService.get:output_type -> protocol.Response
-	3,  // 12: protocol.DataService.reset:output_type -> protocol.Response
-	3,  // 13: protocol.DataService.pull:output_type -> protocol.Response
-	3,  // 14: protocol.DataService.create:output_type -> protocol.Response
-	3,  // 15: protocol.DataService.update:output_type -> protocol.Response
-	3,  // 16: protocol.DataService.delete:output_type -> protocol.Response
-	3,  // 17: protocol.DataService.send:output_type -> protocol.Response
-	3,  // 18: protocol.DataService.register:output_type -> protocol.Response
-	3,  // 19: protocol.DataService.unregister:output_type -> protocol.Response
-	10, // [10:20] is the sub-list for method output_type
-	0,  // [0:10] is the sub-list for method input_type
+	3,  // 10: protocol.DataService.syncSubs:input_type -> protocol.SubsSync
+	4,  // 11: protocol.DataService.query:output_type -> protocol.Response
+	4,  // 12: protocol.DataService.get:output_type -> protocol.Response
+	4,  // 13: protocol.DataService.reset:output_type -> protocol.Response
+	4,  // 14: protocol.DataService.pull:output_type -> protocol.Response
+	4,  // 15: protocol.DataService.create:output_type -> protocol.Response
+	4,  // 16: protocol.DataService.update:output_type -> protocol.Response
+	4,  // 17: protocol.DataService.delete:output_type -> protocol.Response
+	4,  // 18: protocol.DataService.send:output_type -> protocol.Response
+	4,  // 19: protocol.DataService.register:output_type -> protocol.Response
+	4,  // 20: protocol.DataService.unregister:output_type -> protocol.Response
+	4,  // 21: protocol.DataService.syncSubs:output_type -> protocol.Response
+	11, // [11:22] is the sub-list for method output_type
+	0,  // [0:11] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -82,6 +86,7 @@ func file_data_service_proto_init() {
 	file_response_proto_init()
 	file_topic_proto_init()
 	file_subscription_proto_init()
+	file_subs_sync_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
