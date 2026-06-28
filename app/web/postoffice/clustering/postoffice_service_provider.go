@@ -86,19 +86,7 @@ func (c *DataServiceProvider) Receive(topic *protocol.Topic, stream grpc.ServerS
 			receiving = false
 		}
 	}
-	//ctx5, cancel5 := context.WithTimeout(context.Background(), 5*time.Second)
-	//defer cancel5()
-	//select {
-	//case c.DRequest <- TopicRequest{Opt: RECEIVER_REMOVE, Name: topic.NodeId, QChan: ch.Q}:
-	//case <-ctx5.Done():
-	//}
-	//core.AppLog.Debug().Msgf("stop evnt receiver from on [%s]", topic.NodeId)
-	//ctx5b, cancel5b := context.WithTimeout(context.Background(), 5*time.Second)
-	//defer cancel5b()
-	//select {
-	//case c.MRequest <- core.RingRequest{Opt: SYNC_SUB_OPT, Source: core.RingSync{Sub: core.Subscription{NodeId: topic.NodeId, Deleting: true}}}:
-	//case <-ctx5b.Done():
-	//}
+	go c.runRemoveSubByNodeId(&protocol.Subscription{NodeId: topic.NodeId})
 	return nil
 }
 func (c *DataServiceProvider) Disconnect(ctx context.Context, topic *protocol.Topic) (*protocol.Response, error) {

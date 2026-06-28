@@ -91,11 +91,11 @@ func (c *DataServiceProvider) Reset(ctx context.Context, in *protocol.Request) (
 	}
 	ki, err := c.reset(sd)
 	if err != nil {
-		return &protocol.Response{Successful: false, Message: err.Error()},err
+		return &protocol.Response{Successful: false, Message: err.Error()}, err
 	} else {
 		var data []*protocol.Data
 		data = append(data, &protocol.Data{Header: &protocol.Header{Revision: ki.Header.Revision}})
-		return &protocol.Response{Successful: true, Data: &protocol.DataSet{List: data}},nil
+		return &protocol.Response{Successful: true, Data: &protocol.DataSet{List: data}}, nil
 	}
 }
 
@@ -193,6 +193,17 @@ func (c *DataServiceProvider) SyncSubs(ctx context.Context, in *protocol.SubsSyn
 		default:
 			core.AppLog.Warn().Msgf("oops channel is full %d", len(c.sRquest))
 		}
+	}
+	return &protocol.Response{Successful: true}, nil
+}
+
+func (c *DataServiceProvider) RemoveSubsByNodeId(ctx context.Context, in *protocol.Subscription) (*protocol.Response, error) {
+	sub := core.Subscription{}
+	sub.FromProto(in)
+	select {
+	case c.sRquest <- RegisterRequest{opt: SUBS_REMOVE_BY_NODE_ID, sub: sub}:
+	default:
+		core.AppLog.Warn().Msgf("oops channel is full %d", len(c.sRquest))
 	}
 	return &protocol.Response{Successful: true}, nil
 }

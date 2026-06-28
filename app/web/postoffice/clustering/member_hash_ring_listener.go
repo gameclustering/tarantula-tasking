@@ -32,6 +32,8 @@ const (
 	NODE_ADDED   uint32 = 0
 	NODE_REMOVED uint32 = 1
 	NODE_UPDATED uint32 = 3
+
+	SUBS_REMOVE_BY_NODE_ID = 1
 )
 
 type ReceiverAsync struct {
@@ -124,7 +126,13 @@ func (m *MemberHashRingListener) balanceOnNodeRemoved(removed []core.Node) {
 		}
 	})
 }
-
+func (m *MemberHashRingListener) removeSubsByNodeId(nodeId string) {
+	m.subscriptions.lookup(func(sub core.Subscription) {
+		if sub.NodeId == nodeId {
+			m.subscriptions.del(sub)
+		}
+	})
+}
 func (m *MemberHashRingListener) registerSubscription(sub core.Subscription) {
 	if sub.Type == core.TRANS_MAIL && !strings.HasPrefix(sub.Topic, TRANS_SUB_PREFIX) {
 		sub.Topic = fmt.Sprintf("%s%s", TRANS_SUB_PREFIX, sub.Topic)
@@ -176,7 +184,11 @@ running:
 			if !ok {
 				break running
 			}
-			m.registerSubscription(reg.sub)
+			if reg.opt == SUBS_REMOVE_BY_NODE_ID {
+				m.removeSubsByNodeId(reg.sub.NodeId)
+			} else {
+				m.registerSubscription(reg.sub)
+			}
 
 		case mr, ok := <-m.MRequest:
 			if !ok {

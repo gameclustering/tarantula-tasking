@@ -24,7 +24,7 @@ var File_data_service_proto protoreflect.FileDescriptor
 
 const file_data_service_proto_rawDesc = "" +
 	"\n" +
-	"\x12data_service.proto\x12\bprotocol\x1a\rrequest.proto\x1a\x0eresponse.proto\x1a\vtopic.proto\x1a\x12subscription.proto\x1a\x0fsubs_sync.proto\x1a\x0fring_sync.proto\x1a\x10ring_range.proto2\x91\x05\n" +
+	"\x12data_service.proto\x12\bprotocol\x1a\rrequest.proto\x1a\x0eresponse.proto\x1a\vtopic.proto\x1a\x12subscription.proto\x1a\x0fsubs_sync.proto\x1a\x0fring_sync.proto\x1a\x10ring_range.proto2\xd5\x05\n" +
 	"\vDataService\x122\n" +
 	"\x05query\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x000\x01\x12.\n" +
 	"\x03get\x12\x11.protocol.Request\x1a\x12.protocol.Response\"\x00\x120\n" +
@@ -36,7 +36,8 @@ const file_data_service_proto_rawDesc = "" +
 	"\bregister\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00\x12:\n" +
 	"\n" +
 	"unregister\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00\x124\n" +
-	"\bsyncSubs\x12\x12.protocol.SubsSync\x1a\x12.protocol.Response\"\x00\x12:\n" +
+	"\bsyncSubs\x12\x12.protocol.SubsSync\x1a\x12.protocol.Response\"\x00\x12B\n" +
+	"\x12removeSubsByNodeId\x12\x16.protocol.Subscription\x1a\x12.protocol.Response\"\x00\x12:\n" +
 	"\x0enotifyRingSync\x12\x12.protocol.RingSync\x1a\x12.protocol.Response\"\x00\x12<\n" +
 	"\rsyncRingRange\x12\x13.protocol.RingRange\x1a\x12.protocol.Response\"\x000\x01BS\n" +
 	"\x17com.icodesoftware.protoB\x12DataServiceFactoryZ$gameclustering.com/internal/protocolb\x06proto3"
@@ -61,22 +62,24 @@ var file_data_service_proto_depIdxs = []int32{
 	2,  // 7: protocol.DataService.register:input_type -> protocol.Subscription
 	2,  // 8: protocol.DataService.unregister:input_type -> protocol.Subscription
 	3,  // 9: protocol.DataService.syncSubs:input_type -> protocol.SubsSync
-	4,  // 10: protocol.DataService.notifyRingSync:input_type -> protocol.RingSync
-	5,  // 11: protocol.DataService.syncRingRange:input_type -> protocol.RingRange
-	6,  // 12: protocol.DataService.query:output_type -> protocol.Response
-	6,  // 13: protocol.DataService.get:output_type -> protocol.Response
-	6,  // 14: protocol.DataService.reset:output_type -> protocol.Response
-	6,  // 15: protocol.DataService.create:output_type -> protocol.Response
-	6,  // 16: protocol.DataService.update:output_type -> protocol.Response
-	6,  // 17: protocol.DataService.delete:output_type -> protocol.Response
-	6,  // 18: protocol.DataService.send:output_type -> protocol.Response
-	6,  // 19: protocol.DataService.register:output_type -> protocol.Response
-	6,  // 20: protocol.DataService.unregister:output_type -> protocol.Response
-	6,  // 21: protocol.DataService.syncSubs:output_type -> protocol.Response
-	6,  // 22: protocol.DataService.notifyRingSync:output_type -> protocol.Response
-	6,  // 23: protocol.DataService.syncRingRange:output_type -> protocol.Response
-	12, // [12:24] is the sub-list for method output_type
-	0,  // [0:12] is the sub-list for method input_type
+	2,  // 10: protocol.DataService.removeSubsByNodeId:input_type -> protocol.Subscription
+	4,  // 11: protocol.DataService.notifyRingSync:input_type -> protocol.RingSync
+	5,  // 12: protocol.DataService.syncRingRange:input_type -> protocol.RingRange
+	6,  // 13: protocol.DataService.query:output_type -> protocol.Response
+	6,  // 14: protocol.DataService.get:output_type -> protocol.Response
+	6,  // 15: protocol.DataService.reset:output_type -> protocol.Response
+	6,  // 16: protocol.DataService.create:output_type -> protocol.Response
+	6,  // 17: protocol.DataService.update:output_type -> protocol.Response
+	6,  // 18: protocol.DataService.delete:output_type -> protocol.Response
+	6,  // 19: protocol.DataService.send:output_type -> protocol.Response
+	6,  // 20: protocol.DataService.register:output_type -> protocol.Response
+	6,  // 21: protocol.DataService.unregister:output_type -> protocol.Response
+	6,  // 22: protocol.DataService.syncSubs:output_type -> protocol.Response
+	6,  // 23: protocol.DataService.removeSubsByNodeId:output_type -> protocol.Response
+	6,  // 24: protocol.DataService.notifyRingSync:output_type -> protocol.Response
+	6,  // 25: protocol.DataService.syncRingRange:output_type -> protocol.Response
+	13, // [13:26] is the sub-list for method output_type
+	0,  // [0:13] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
