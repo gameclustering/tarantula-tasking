@@ -86,6 +86,7 @@ func (c *DataServiceProvider) Receive(topic *protocol.Topic, stream grpc.ServerS
 			receiving = false
 		}
 	}
+	core.AppLog.Info().Msgf("end event receiver on [%s]", topic.NodeId)
 	go c.runRemoveSubByNodeId(&protocol.Subscription{NodeId: topic.NodeId})
 	return nil
 }
