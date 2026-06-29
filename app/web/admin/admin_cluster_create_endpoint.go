@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 
@@ -24,16 +25,49 @@ func (s *AdminClusterCreate) AccessControl() int32 {
 
 func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	var plan protocol.PlanObject
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
+
+	// Extract workspaceId from JSON (non-proto field).
+	var meta struct {
+		WorkspaceId int32 `json:"workspaceId"`
+	}
+	json.Unmarshal(body, &meta)
+
+	var plan protocol.PlanObject
 	if err := protojson.Unmarshal(body, &plan); err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
+
+	gitKey, err := s.Cluster().AuthKey("git")
+	if err != nil {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "git auth key: " + err.Error()}))
+		return
+	}
+
+	// Workspace overrides platform + env and syncs settings into deploy.json.
+	if meta.WorkspaceId > 0 {
+		ws, err := s.GetWorkspace(meta.WorkspaceId)
+		if err != nil {
+			w.Write(util.ToJson(core.OnSession{Successful: false, Message: "workspace: " + err.Error()}))
+			return
+		}
+		planName := plan.Name
+		if planName == "" && plan.AppRepo != nil {
+			planName = plan.AppRepo.Name
+		}
+		if err := s.UpsertWorkspaceSection(ws, plan.DeployRepo, planName, gitKey); err != nil {
+			w.Write(util.ToJson(core.OnSession{Successful: false, Message: "sync workspace: " + err.Error()}))
+			return
+		}
+		plan.Platform = ws.Platform
+		plan.Env = ws.Name
+	}
+
 	if plan.Platform == "" {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "platform is required"}))
 		return
@@ -43,11 +77,6 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 		return
 	}
 
-	gitKey, err := s.Cluster().AuthKey("git")
-	if err != nil {
-		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "git auth key: " + err.Error()}))
-		return
-	}
 	planName := plan.Name
 	if planName == "" && plan.AppRepo != nil {
 		planName = plan.AppRepo.Name

@@ -12,24 +12,18 @@ import (
 )
 
 type deployConfigService struct {
-	Name      string            `json:"name"`
-	Network   string            `json:"network"`
-	HttpBinding string          `json:"httpBinding"`
+	Name        string `json:"name"`
+	Network     string `json:"network"`
+	HttpBinding string `json:"httpBinding"`
 }
 
 type deployConfigRequest struct {
-	AppName     string                 `json:"appName"`
-	Platform    string                 `json:"platform"`
-	DeployRepo  string                 `json:"deployRepo"`
-	Prefix      string                 `json:"prefix"`
-	SshUser     string                 `json:"sshUser"`
-	VaultHost   string                 `json:"vaultHost"`
-	BuildHost   string                 `json:"buildHost"`
-	BuildHosts  []string               `json:"buildHosts"`
-	Services    []deployConfigService  `json:"services"`
-	Ports       []string               `json:"ports"`
-	EnvCounts   map[string]int         `json:"envCounts"`
-	Settings    map[string]string      `json:"settings"`
+	AppName    string                `json:"appName"`
+	Platform   string                `json:"platform"`
+	DeployRepo string                `json:"deployRepo"`
+	Prefix     string                `json:"prefix"`
+	Services   []deployConfigService `json:"services"`
+	Ports      []string              `json:"ports"`
 }
 
 type AdminDeployConfig struct {
@@ -51,12 +45,6 @@ func (s *AdminDeployConfig) Request(rs core.OnSession, w http.ResponseWriter, r 
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "appName, platform and deployRepo are required"}))
 		return
 	}
-	if req.SshUser == "" {
-		req.SshUser = "tarantula"
-	}
-	if req.VaultHost == "" {
-		req.VaultHost = "https://vault.gameclustering.com"
-	}
 
 	gitKey, err := s.Cluster().AuthKey("git")
 	if err != nil {
@@ -76,7 +64,6 @@ func (s *AdminDeployConfig) Request(rs core.OnSession, w http.ResponseWriter, r 
 		return
 	}
 
-	// Build deploy.json structure.
 	services := make([]map[string]string, 0, len(req.Services))
 	for _, svc := range req.Services {
 		m := map[string]string{"name": svc.Name, "network": svc.Network}
@@ -86,18 +73,9 @@ func (s *AdminDeployConfig) Request(rs core.OnSession, w http.ResponseWriter, r 
 		services = append(services, m)
 	}
 
-	defaultSettings := map[string]string{}
-	for k, v := range req.Settings {
-		defaultSettings[k] = v
-	}
-
 	defaultDeploy := map[string]any{
-		"prefix":        req.Prefix,
-		"instanceNumber": 1,
-		"sshUser":       req.SshUser,
-		"vaultHost":     req.VaultHost,
-		"description":   fmt.Sprintf("deploy %s", req.AppName),
-		"settings":      defaultSettings,
+		"prefix":      req.Prefix,
+		"description": fmt.Sprintf("deploy %s", req.AppName),
 	}
 	if len(services) > 0 {
 		defaultDeploy["services"] = services
@@ -106,30 +84,13 @@ func (s *AdminDeployConfig) Request(rs core.OnSession, w http.ResponseWriter, r 
 		defaultDeploy["ports"] = req.Ports
 	}
 
-	defaultBuild := map[string]any{
-		"sshUser":     req.SshUser,
-		"description": fmt.Sprintf("build %s Docker image", req.AppName),
-	}
-	if req.BuildHost != "" {
-		defaultBuild["buildHost"] = req.BuildHost
-	}
-	if len(req.BuildHosts) > 0 {
-		defaultBuild["buildHosts"] = req.BuildHosts
-	}
-
 	config := map[string]any{
 		"default": map[string]any{
-			"build":  defaultBuild,
+			"build": map[string]any{
+				"description": fmt.Sprintf("build %s Docker image", req.AppName),
+			},
 			"deploy": defaultDeploy,
 		},
-	}
-	for env, count := range req.EnvCounts {
-		if env == "default" || count == 0 {
-			continue
-		}
-		config[env] = map[string]any{
-			"deploy": map[string]any{"instanceNumber": count},
-		}
 	}
 
 	data, err := json.MarshalIndent(config, "", "    ")
@@ -138,7 +99,6 @@ func (s *AdminDeployConfig) Request(rs core.OnSession, w http.ResponseWriter, r 
 		return
 	}
 
-	// Write file to repo.
 	configDir := filepath.Join(repoPath, req.Platform, req.AppName)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "mkdir: " + err.Error()}))
