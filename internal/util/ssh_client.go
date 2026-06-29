@@ -41,6 +41,29 @@ func (c *SshClient) WithPassword() error {
 	return nil
 }
 
+// WithKeyInsecure connects using the private key but skips host-key verification.
+// Use only for freshly provisioned VMs where the host key is not yet known.
+func (c *SshClient) WithKeyInsecure() error {
+	signer, err := ssh.ParsePrivateKey([]byte(c.PrivateKey))
+	if err != nil {
+		return err
+	}
+	conf := ssh.ClientConfig{
+		User: c.User,
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeys(signer),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         15 * time.Second,
+	}
+	ci, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", c.Host, 22), &conf)
+	if err != nil {
+		return err
+	}
+	c.conn = ci
+	return nil
+}
+
 func (c *SshClient) WithKey() error {
 
 	signer, err := ssh.ParsePrivateKey([]byte(c.PrivateKey))

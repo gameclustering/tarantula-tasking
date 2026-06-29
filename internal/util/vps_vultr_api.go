@@ -70,6 +70,19 @@ func (v *VultrApi) ListInstances() ([]VultrInstance, error) {
 	return out.Instances, err
 }
 
+// GetInstance fetches a single instance by its Vultr ID.
+func (v *VultrApi) GetInstance(id string) (*VultrInstance, error) {
+	var out vultrInstanceResponse
+	err := v.getJson(fmt.Sprintf("instances/%s", id), func(resp *http.Response) error {
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("get instance HTTP %d: %s", resp.StatusCode, b)
+		}
+		return json.NewDecoder(resp.Body).Decode(&out)
+	})
+	return &out.Instance, err
+}
+
 // GetInstanceByLabel finds an instance by its label. Returns an error if not found.
 func (v *VultrApi) GetInstanceByLabel(label string) (*VultrInstance, error) {
 	instances, err := v.ListInstances()
