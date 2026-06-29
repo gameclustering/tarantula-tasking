@@ -82,6 +82,7 @@ func (s *AdminService) Start(f core.Env) error {
 
 	http.Handle("POST /admin/vps/setup", bootstrap.Logging(&AdminVpsSetup{AdminService: s}))
 	http.Handle("GET /admin/vps/instances", bootstrap.Logging(&AdminVpsInstances{AdminService: s}))
+	http.Handle("POST /admin/vps/create", bootstrap.Logging(&AdminVpsCreate{AdminService: s}))
 
 	core.AppLog.Info().Msgf("Admin service started %s\n", f.HttpBinding)
 	return nil
