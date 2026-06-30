@@ -2,6 +2,7 @@ package clustering
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -211,10 +212,14 @@ running:
 			}
 			switch req.Opt {
 			case RECEIVER_START:
-				_, existed := m.listeners[req.Name]
-				// Always allocate a fresh channel pair so each Receive goroutine
-				// has exclusive ownership — prevents double-close on reconnect.
-				rev := ReceiverAsync{Rev: make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE), Q: make(chan string, 2), Subs: make(map[string]core.Subscription)}
+				old, existed := m.listeners[req.Name]
+				// Fresh Rev+Q for new stream (prevents double-close on reconnect),
+				// but preserve Subs so Subscribe-before-RECEIVER_START race doesn't wipe registrations.
+				subs := make(map[string]core.Subscription)
+				if existed {
+					maps.Copy(subs, old.Subs)
+				}
+				rev := ReceiverAsync{Rev: make(chan *protocol.Mail, NODE_EVENT_BUFFER_SIZE), Q: make(chan string, 2), Subs: subs}
 				m.listeners[req.Name] = rev
 				if !existed {
 					m.listenerPool = append(m.listenerPool, req.Name)
