@@ -30,6 +30,7 @@ func AppBootstrap(tcx TarantulaContext) {
 	Register(event.REQUEST_TOPIC_NAME, func() core.QueryFactory { return event.NewRequestEventFactory() })
 	Register(event.TASK_TOPIC_NAME, func() core.QueryFactory { return event.NewTaskEventFactory() })
 	Register(event.TRANSACTION_TOPIC_NAME, func() core.QueryFactory { return event.NewTransactionEventFactory() })
+	Register(event.SERVICE_TOPIC_NAME, func() core.QueryFactory { return event.NewMessageEventFactory() })
 	Register(persistence.LOGIN_OBJECT_FACTORY_NAME, func() core.QueryFactory { return persistence.NewLoginObjectFactory() })
 	Register(persistence.REPOSITORY_OBJECT_FACTORY_NAME, func() core.QueryFactory { return persistence.NewRepositoryObjectFactory() })
 
