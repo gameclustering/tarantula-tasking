@@ -33,6 +33,8 @@ const (
 
 	TRANSACTION_EVENT_CID  uint32 = 8
 	TRANSACTION_TOPIC_NAME string = "transaction"
+
+	SERVICE_TOPIC_NAME string = "service" // carries MessageEvent: Title=service name, Source=env, Message=vault_access_name
 )
 
 type MessageTopic func() proto.Message

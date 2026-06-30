@@ -57,6 +57,31 @@ func (s *AdminService) Start(f core.Env) error {
 			core.AppLog.Debug().Msg("wrong type")
 		}
 	}})
+	s.Cluster().Subscribe(event.SERVICE_TOPIC_NAME, &protocol.TopicEventListener{C: func() proto.Message {
+		return &protocol.MessageEvent{}
+	}, M: func(m proto.Message) {
+		msg, ok := m.(*protocol.MessageEvent)
+		if !ok {
+			return
+		}
+		ws, err := s.GetWorkspaceByName(msg.Source)
+		if err != nil {
+			core.AppLog.Warn().Msgf("service event: workspace %q not found: %s", msg.Source, err)
+			return
+		}
+		id, err := s.SaveServiceAccess(&ServiceAccessRow{
+			Name:            msg.Title,
+			VaultAccessName: msg.Message,
+			WorkspaceId:     ws.Id,
+		})
+		if err != nil {
+			core.AppLog.Warn().Msgf("service event: save failed service=%s workspace=%s: %s", msg.Title, msg.Source, err)
+			return
+		}
+		if id > 0 {
+			core.AppLog.Info().Msgf("service event: saved service=%s workspace=%s vault=%s id=%d", msg.Title, msg.Source, msg.Message, id)
+		}
+	}})
 	http.Handle("/admin/webprotected/{name}", bootstrap.Logging(&AdminWebProtected{AdminService: s}))
 
 	http.Handle("/admin/cs/message/send", bootstrap.Logging(&CSMessager{AdminService: s}))
@@ -97,6 +122,7 @@ func (s *AdminService) Start(f core.Env) error {
 
 func (s *AdminService) Shutdown() {
 	s.Cluster().Unsubscribe(event.TASK_TOPIC_NAME)
+	s.Cluster().Unsubscribe(event.SERVICE_TOPIC_NAME)
 	time.Sleep(1 * time.Second)
 	s.AppManager.Shutdown()
 }

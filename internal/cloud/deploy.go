@@ -10,6 +10,7 @@ import (
 
 	"gameclustering.com/internal/bootstrap"
 	"gameclustering.com/internal/core"
+	"gameclustering.com/internal/event"
 	"gameclustering.com/internal/protocol"
 	"gameclustering.com/internal/util"
 	"google.golang.org/protobuf/proto"
@@ -108,6 +109,9 @@ func (h *deployHandler) reserve(t *protocol.Transaction) error {
 	if err != nil {
 		return fmt.Errorf("deploy [%s]: instance %s: %w", planName, name, err)
 	}
+	if seq <= 1 && plan.Name != "" {
+		h.publishServiceEvent(plan.Name, plan.Env, &deployPhase)
+	}
 	return h.store.Insert(t.Meta)
 }
 
@@ -197,6 +201,27 @@ func (h *deployHandler) runContainer(ssh util.SshClient, instanceName, svcName, 
 		core.AppLog.Debug().Msgf("deploy [%s/%s]: %s", instanceName, svcName, strings.TrimSpace(out.String()))
 	}
 	return nil
+}
+
+func (h *deployHandler) publishServiceEvent(serviceName, env string, phase *core.PhaseConfig) {
+	vaultAccessName := serviceName
+	if phase.Credentials != nil && phase.Credentials.VaultPath != "" {
+		vaultAccessName = phase.Credentials.VaultMount + "/" + phase.Credentials.VaultPath
+	}
+	mf := event.MessageEventFactory{}
+	me := &protocol.MessageEvent{Title: serviceName, Source: env, Message: vaultAccessName}
+	tp, err := mf.FromMessageEvent(me)
+	if err != nil {
+		core.AppLog.Warn().Msgf("service event: marshal: %s", err)
+		return
+	}
+	tp.Name = event.SERVICE_TOPIC_NAME
+	tp.Event.Key.Array = core.ToBytes(h.mgr.Sequence())
+	tp.NodeId = h.mgr.NodeId()
+	if _, err := h.mgr.Cluster().Publish(tp); err != nil {
+		core.AppLog.Warn().Msgf("service event: publish: %s", err)
+	}
+	core.AppLog.Info().Msgf("service event: published service=%s env=%s vault=%s", serviceName, env, vaultAccessName)
 }
 
 func (h *deployHandler) seedCredentials(spec *core.CredentialSpec) error {

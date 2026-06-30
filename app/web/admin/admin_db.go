@@ -23,8 +23,14 @@ const (
 	INSERT_WORKSPACE        string = "INSERT INTO work_space (name, platform, settings, instance_count, ssh_user, vault_host, build_host) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id"
 	SELECT_WORKSPACES       string = "SELECT id, name, platform, settings, instance_count, ssh_user, vault_host, build_host FROM work_space ORDER BY name"
 	SELECT_WORKSPACE        string = "SELECT id, name, platform, settings, instance_count, ssh_user, vault_host, build_host FROM work_space WHERE id=$1"
+	SELECT_WORKSPACE_BY_NAME string = "SELECT id, name, platform, settings, instance_count, ssh_user, vault_host, build_host FROM work_space WHERE name=$1"
 	UPDATE_WORKSPACE        string = "UPDATE work_space SET name=$1, platform=$2, settings=$3, instance_count=$4, ssh_user=$5, vault_host=$6, build_host=$7 WHERE id=$8"
 	DELETE_WORKSPACE        string = "DELETE FROM work_space WHERE id=$1"
+
+	CREATE_SERVICE_ACCESS_SCHEMA string = "CREATE TABLE IF NOT EXISTS service_access (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, vault_access_name VARCHAR(255) NOT NULL DEFAULT '', workspace_id INTEGER NOT NULL REFERENCES work_space(id) ON DELETE CASCADE, UNIQUE(name, workspace_id))"
+	INSERT_SERVICE_ACCESS        string = "INSERT INTO service_access (name, vault_access_name, workspace_id) VALUES($1,$2,$3) ON CONFLICT (name, workspace_id) DO NOTHING RETURNING id"
+	SELECT_SERVICE_ACCESSES      string = "SELECT id, name, vault_access_name, workspace_id FROM service_access WHERE workspace_id=$1 ORDER BY name"
+	DELETE_SERVICE_ACCESS        string = "DELETE FROM service_access WHERE id=$1"
 )
 
 type RepoRow struct {
@@ -46,6 +52,13 @@ type WorkspaceRow struct {
 	BuildHost     string            `json:"buildHost"`
 }
 
+type ServiceAccessRow struct {
+	Id              int32  `json:"id"`
+	Name            string `json:"name"`
+	VaultAccessName string `json:"vaultAccessName"`
+	WorkspaceId     int32  `json:"workspaceId"`
+}
+
 func (s *AdminService) createSchema() error {
 	if _, err := s.Sql.Exec(CREATE_LOGIN_SCHEMA); err != nil {
 		return err
@@ -54,6 +67,9 @@ func (s *AdminService) createSchema() error {
 		return err
 	}
 	if _, err := s.Sql.Exec(CREATE_WORKSPACE_SCHEMA); err != nil {
+		return err
+	}
+	if _, err := s.Sql.Exec(CREATE_SERVICE_ACCESS_SCHEMA); err != nil {
 		return err
 	}
 	return nil
@@ -220,6 +236,60 @@ func (s *AdminService) UpdatePassword(login *protocol.LoginObject) error {
 	}
 	if updated == 0 {
 		return errors.New("password cannot be saved")
+	}
+	return nil
+}
+
+func (s *AdminService) GetWorkspaceByName(name string) (*WorkspaceRow, error) {
+	var result *WorkspaceRow
+	err := s.Sql.Query(func(r pgx.Rows) error {
+		row, err := s.scanWorkspace(r)
+		if err != nil {
+			return err
+		}
+		result = &row
+		return nil
+	}, SELECT_WORKSPACE_BY_NAME, name)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, errors.New("workspace not found")
+	}
+	return result, nil
+}
+
+func (s *AdminService) SaveServiceAccess(sa *ServiceAccessRow) (int32, error) {
+	var id int32
+	err := s.Sql.Query(func(r pgx.Rows) error {
+		return r.Scan(&id)
+	}, INSERT_SERVICE_ACCESS, sa.Name, sa.VaultAccessName, sa.WorkspaceId)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func (s *AdminService) ListServiceAccesses(workspaceId int32) ([]ServiceAccessRow, error) {
+	var list []ServiceAccessRow
+	err := s.Sql.Query(func(r pgx.Rows) error {
+		var row ServiceAccessRow
+		if err := r.Scan(&row.Id, &row.Name, &row.VaultAccessName, &row.WorkspaceId); err != nil {
+			return err
+		}
+		list = append(list, row)
+		return nil
+	}, SELECT_SERVICE_ACCESSES, workspaceId)
+	return list, err
+}
+
+func (s *AdminService) DeleteServiceAccess(id int32) error {
+	deleted, err := s.Sql.Exec(DELETE_SERVICE_ACCESS, id)
+	if err != nil {
+		return err
+	}
+	if deleted == 0 {
+		return errors.New("service access not found")
 	}
 	return nil
 }
