@@ -93,6 +93,7 @@ func (h *buildHandler) reserve(t *protocol.Transaction) error {
 		buildIP = ip
 	}
 
+	core.AppLog.Info().Msgf("build [%s]: connecting as %s@%s", planName, sshUser, buildIP)
 	if err := h.buildOnHost(buildIP, sshKey, sshUser, gitKey, &plan, dockerKey.Docker, deployPhase.Services); err != nil {
 		return fmt.Errorf("build [%s]: %w", planName, err)
 	}

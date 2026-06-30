@@ -114,14 +114,29 @@ func (s *AdminWorkspaceDelete) Request(rs core.OnSession, w http.ResponseWriter,
 // UpsertWorkspaceSection writes the workspace's settings as a named env section
 // in the app's deploy.json, then commits and pushes. This is called at task-issue
 // time so cloud step workers find the workspace settings via cfg.Resolve(ws.Name, phase).
+// Retries once on non-fast-forward by re-cloning the repo.
 func (s *AdminService) UpsertWorkspaceSection(ws *WorkspaceRow, deployRepo *protocol.RepoObject, appName string, gitKey *protocol.AuthKey) error {
+	repoPath := filepath.Join("work", deployRepo.Name)
+	url := fmt.Sprintf("git@github.com:%s/%s.git", gitKey.Git.Org, deployRepo.Name)
+	for attempt := 0; attempt < 2; attempt++ {
+		err := s.tryUpsertWorkspaceSection(ws, appName, url, repoPath, gitKey)
+		if err == nil {
+			return nil
+		}
+		if !strings.Contains(err.Error(), "non-fast-forward") {
+			return err
+		}
+		os.RemoveAll(repoPath)
+	}
+	return fmt.Errorf("git push: non-fast-forward after retry")
+}
+
+func (s *AdminService) tryUpsertWorkspaceSection(ws *WorkspaceRow, appName, url, repoPath string, gitKey *protocol.AuthKey) error {
 	gc := util.GitClient{
 		PrivateKey:  gitKey.Git.Key,
 		AuthorName:  "tarantula-admin",
 		AuthorEmail: "admin@gameclustering.com",
 	}
-	url := fmt.Sprintf("git@github.com:%s/%s.git", gitKey.Git.Org, deployRepo.Name)
-	repoPath := filepath.Join("work", deployRepo.Name)
 	if err := gc.CloneOrUpdate(url, repoPath); err != nil {
 		return fmt.Errorf("clone: %w", err)
 	}
@@ -144,13 +159,11 @@ func (s *AdminService) UpsertWorkspaceSection(ws *WorkspaceRow, deployRepo *prot
 
 	config[ws.Name] = core.DeployEnvConfig{
 		Deploy: core.PhaseConfig{
-			InstanceNumber: ws.InstanceCount,
-			SshUser:        ws.SshUser,
-			VaultHost:      ws.VaultHost,
-			Settings:       settings,
+			SshUser:   ws.SshUser,
+			VaultHost: ws.VaultHost,
+			Settings:  settings,
 		},
 		Build: core.PhaseConfig{
-			SshUser:   ws.SshUser,
 			BuildHost: ws.BuildHost,
 		},
 	}

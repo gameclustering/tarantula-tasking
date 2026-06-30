@@ -301,8 +301,10 @@ running:
 						m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
 						break
 					}
-					//mark last one to break loop if fullly iterated
-					lk = nk
+					//mark first element to break loop after one full rotation
+					if lk == "" {
+						lk = nk
+					}
 					m.listenerPool = append(m.listenerPool[1:], nk) //add to tail
 				}
 				if !delivered {

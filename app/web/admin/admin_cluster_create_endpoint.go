@@ -38,7 +38,7 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 	json.Unmarshal(body, &meta)
 
 	var plan protocol.PlanObject
-	if err := protojson.Unmarshal(body, &plan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(body, &plan); err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
 		return
 	}
