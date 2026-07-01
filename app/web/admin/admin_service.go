@@ -82,7 +82,6 @@ func (s *AdminService) Start(f core.Env) error {
 			core.AppLog.Info().Msgf("service event: saved service=%s workspace=%s vault=%s id=%d", msg.Title, msg.Source, msg.Message, id)
 		}
 	}})
-	http.Handle("/admin/webprotected/{name}", bootstrap.Logging(&AdminWebProtected{AdminService: s}))
 
 	http.Handle("/admin/cs/message/send", bootstrap.Logging(&CSMessager{AdminService: s}))
 
