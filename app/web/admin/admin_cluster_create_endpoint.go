@@ -60,7 +60,8 @@ func (s *AdminClusterCreate) Request(rs core.OnSession, w http.ResponseWriter, r
 		if planName == "" && plan.AppRepo != nil {
 			planName = plan.AppRepo.Name
 		}
-		if err := s.UpsertWorkspaceSection(ws, plan.DeployRepo, planName, gitKey); err != nil {
+		services, _ := s.ListServiceAccesses(ws.Id)
+		if err := s.UpsertWorkspaceSection(ws, services, plan.DeployRepo, planName, gitKey); err != nil {
 			w.Write(util.ToJson(core.OnSession{Successful: false, Message: "sync workspace: " + err.Error()}))
 			return
 		}

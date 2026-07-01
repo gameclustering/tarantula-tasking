@@ -12,6 +12,13 @@ type PromotionSpec struct {
 	TagPattern string `json:"tagPattern"` // sprintf pattern with env, e.g., "%s-ready"
 }
 
+// ServiceAccess links a service name to its vault credentials path.
+// Injected as {NAME_UPPER}_VAULT_PATH env vars into deployed app containers.
+type ServiceAccess struct {
+	Name            string `json:"name"`            // e.g. "postgresql"
+	VaultAccessName string `json:"vaultAccessName"` // e.g. "dev/presence/postgresql"
+}
+
 // CredentialField is a single field in a credential spec: either a static value or a generated password.
 type CredentialField struct {
 	Value    string `json:"value"`
@@ -40,9 +47,10 @@ type PhaseConfig struct {
 	Ports          []string           `json:"ports"`      // host:container port mappings for single-repo deploys
 	Settings       map[string]string  `json:"settings"`   // platform-specific key-value pairs
 	Credentials    *CredentialSpec    `json:"credentials"` // auto-seed service credentials into Vault on first deploy
-	TestRepo       string             `json:"testRepo"`   // test phase: repo containing k6 scripts
-	AppPrefix      string             `json:"appPrefix"`  // test phase: prefix of app instances to test against
-	Promotion      *PromotionSpec     `json:"promotion"`  // test phase: git tag to push on test pass
+	ServiceAccesses []ServiceAccess    `json:"serviceAccesses"` // workspace services injected as env vars
+	TestRepo        string             `json:"testRepo"`        // test phase: repo containing k6 scripts
+	AppPrefix       string             `json:"appPrefix"`       // test phase: prefix of app instances to test against
+	Promotion       *PromotionSpec     `json:"promotion"`       // test phase: git tag to push on test pass
 }
 
 // DefaultSteps is the ordered pipeline used when deploy.json omits "steps".
@@ -148,6 +156,9 @@ func mergePhase(primary, fallback PhaseConfig) PhaseConfig {
 	}
 	if primary.Credentials == nil {
 		primary.Credentials = fallback.Credentials
+	}
+	if len(primary.ServiceAccesses) == 0 {
+		primary.ServiceAccesses = fallback.ServiceAccesses
 	}
 	if primary.TestRepo == "" {
 		primary.TestRepo = fallback.TestRepo

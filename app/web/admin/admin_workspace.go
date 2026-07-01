@@ -14,6 +14,46 @@ import (
 	"gameclustering.com/internal/util"
 )
 
+type AdminWorkspaceServices struct{ *AdminService }
+
+func (s *AdminWorkspaceServices) AccessControl() int32 { return core.ADMIN_ACCESS_CONTROL }
+
+func (s *AdminWorkspaceServices) Request(rs core.OnSession, w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "invalid id"}))
+		return
+	}
+	list, err := s.ListServiceAccesses(int32(id))
+	if err != nil {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
+		return
+	}
+	if list == nil {
+		list = []ServiceAccessRow{}
+	}
+	w.Write(util.ToJson(list))
+}
+
+type AdminWorkspaceServiceDelete struct{ *AdminService }
+
+func (s *AdminWorkspaceServiceDelete) AccessControl() int32 { return core.ADMIN_ACCESS_CONTROL }
+
+func (s *AdminWorkspaceServiceDelete) Request(rs core.OnSession, w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "invalid id"}))
+		return
+	}
+	if err := s.DeleteServiceAccess(int32(id)); err != nil {
+		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
+		return
+	}
+	w.Write(util.ToJson(core.OnSession{Successful: true}))
+}
+
 type AdminWorkspaceList struct{ *AdminService }
 
 func (s *AdminWorkspaceList) AccessControl() int32 { return core.ADMIN_ACCESS_CONTROL }
@@ -115,11 +155,11 @@ func (s *AdminWorkspaceDelete) Request(rs core.OnSession, w http.ResponseWriter,
 // in the app's deploy.json, then commits and pushes. This is called at task-issue
 // time so cloud step workers find the workspace settings via cfg.Resolve(ws.Name, phase).
 // Retries once on non-fast-forward by re-cloning the repo.
-func (s *AdminService) UpsertWorkspaceSection(ws *WorkspaceRow, deployRepo *protocol.RepoObject, appName string, gitKey *protocol.AuthKey) error {
+func (s *AdminService) UpsertWorkspaceSection(ws *WorkspaceRow, services []ServiceAccessRow, deployRepo *protocol.RepoObject, appName string, gitKey *protocol.AuthKey) error {
 	repoPath := filepath.Join("work", deployRepo.Name)
 	url := fmt.Sprintf("git@github.com:%s/%s.git", gitKey.Git.Org, deployRepo.Name)
 	for attempt := 0; attempt < 2; attempt++ {
-		err := s.tryUpsertWorkspaceSection(ws, appName, url, repoPath, gitKey)
+		err := s.tryUpsertWorkspaceSection(ws, services, appName, url, repoPath, gitKey)
 		if err == nil {
 			return nil
 		}
@@ -131,7 +171,7 @@ func (s *AdminService) UpsertWorkspaceSection(ws *WorkspaceRow, deployRepo *prot
 	return fmt.Errorf("git push: non-fast-forward after retry")
 }
 
-func (s *AdminService) tryUpsertWorkspaceSection(ws *WorkspaceRow, appName, url, repoPath string, gitKey *protocol.AuthKey) error {
+func (s *AdminService) tryUpsertWorkspaceSection(ws *WorkspaceRow, services []ServiceAccessRow, appName, url, repoPath string, gitKey *protocol.AuthKey) error {
 	gc := util.GitClient{
 		PrivateKey:  gitKey.Git.Key,
 		AuthorName:  "tarantula-admin",
@@ -157,12 +197,23 @@ func (s *AdminService) tryUpsertWorkspaceSection(ws *WorkspaceRow, appName, url,
 		settings[k] = v
 	}
 
+	serviceAccesses := make([]core.ServiceAccess, 0, len(services))
+	for _, sa := range services {
+		serviceAccesses = append(serviceAccesses, core.ServiceAccess{
+			Name:            sa.Name,
+			VaultAccessName: sa.VaultAccessName,
+		})
+	}
+
+	deployPhase := core.PhaseConfig{
+		SshUser:         ws.SshUser,
+		VaultHost:       ws.VaultHost,
+		Settings:        settings,
+		ServiceAccesses: serviceAccesses,
+	}
+
 	config[ws.Name] = core.DeployEnvConfig{
-		Deploy: core.PhaseConfig{
-			SshUser:   ws.SshUser,
-			VaultHost: ws.VaultHost,
-			Settings:  settings,
-		},
+		Deploy: deployPhase,
 		Build: core.PhaseConfig{
 			BuildHost: ws.BuildHost,
 		},

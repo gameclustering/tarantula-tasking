@@ -17,13 +17,25 @@ type deployConfigService struct {
 	HttpBinding string `json:"httpBinding"`
 }
 
+type deployConfigCredentialField struct {
+	Value    string `json:"value"`
+	Generate bool   `json:"generate"`
+}
+
+type deployConfigCredentials struct {
+	VaultMount string                                 `json:"vaultMount"`
+	VaultPath  string                                 `json:"vaultPath"`
+	Fields     map[string]deployConfigCredentialField `json:"fields"`
+}
+
 type deployConfigRequest struct {
-	AppName    string                `json:"appName"`
-	Platform   string                `json:"platform"`
-	DeployRepo string                `json:"deployRepo"`
-	Prefix     string                `json:"prefix"`
-	Services   []deployConfigService `json:"services"`
-	Ports      []string              `json:"ports"`
+	AppName     string                   `json:"appName"`
+	Platform    string                   `json:"platform"`
+	DeployRepo  string                   `json:"deployRepo"`
+	Prefix      string                   `json:"prefix"`
+	Services    []deployConfigService    `json:"services"`
+	Ports       []string                 `json:"ports"`
+	Credentials *deployConfigCredentials `json:"credentials"`
 }
 
 type AdminDeployConfig struct {
@@ -82,6 +94,21 @@ func (s *AdminDeployConfig) Request(rs core.OnSession, w http.ResponseWriter, r 
 	}
 	if len(req.Ports) > 0 {
 		defaultDeploy["ports"] = req.Ports
+	}
+	if req.Credentials != nil && req.Credentials.VaultMount != "" && req.Credentials.VaultPath != "" {
+		fields := make(map[string]map[string]any, len(req.Credentials.Fields))
+		for k, f := range req.Credentials.Fields {
+			if f.Generate {
+				fields[k] = map[string]any{"generate": true}
+			} else {
+				fields[k] = map[string]any{"value": f.Value}
+			}
+		}
+		defaultDeploy["credentials"] = map[string]any{
+			"vaultMount": req.Credentials.VaultMount,
+			"vaultPath":  req.Credentials.VaultPath,
+			"fields":     fields,
+		}
 	}
 
 	config := map[string]any{
