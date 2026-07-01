@@ -4,6 +4,7 @@
 // 	protoc        v6.33.0
 // source: login_event.proto
 
+
 package protocol
 
 import (

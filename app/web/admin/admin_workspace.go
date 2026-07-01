@@ -25,6 +25,25 @@ func (s *AdminWorkspaceServices) Request(rs core.OnSession, w http.ResponseWrite
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: "invalid id"}))
 		return
 	}
+	if r.Method == http.MethodPost {
+		var sa ServiceAccessRow
+		if err := json.NewDecoder(r.Body).Decode(&sa); err != nil {
+			w.Write(util.ToJson(core.OnSession{Successful: false, Message: "invalid request body"}))
+			return
+		}
+		if sa.Name == "" || sa.VaultAccessName == "" {
+			w.Write(util.ToJson(core.OnSession{Successful: false, Message: "name and vaultAccessName are required"}))
+			return
+		}
+		sa.WorkspaceId = int32(id)
+		newId, err := s.SaveServiceAccess(&sa)
+		if err != nil {
+			w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))
+			return
+		}
+		w.Write(util.ToJson(map[string]any{"successful": true, "id": newId}))
+		return
+	}
 	list, err := s.ListServiceAccesses(int32(id))
 	if err != nil {
 		w.Write(util.ToJson(core.OnSession{Successful: false, Message: err.Error()}))

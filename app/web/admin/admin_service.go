@@ -116,6 +116,7 @@ func (s *AdminService) Start(f core.Env) error {
 	http.Handle("PUT /admin/workspace/{id}", bootstrap.Logging(&AdminWorkspaceUpdate{AdminService: s}))
 	http.Handle("DELETE /admin/workspace/{id}", bootstrap.Logging(&AdminWorkspaceDelete{AdminService: s}))
 	http.Handle("GET /admin/workspace/{id}/services", bootstrap.Logging(&AdminWorkspaceServices{AdminService: s}))
+	http.Handle("POST /admin/workspace/{id}/services", bootstrap.Logging(&AdminWorkspaceServices{AdminService: s}))
 	http.Handle("DELETE /admin/workspace/service/{id}", bootstrap.Logging(&AdminWorkspaceServiceDelete{AdminService: s}))
 
 	core.AppLog.Info().Msgf("Admin service started %s\n", f.HttpBinding)
