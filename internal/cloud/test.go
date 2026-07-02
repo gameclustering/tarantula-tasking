@@ -225,8 +225,8 @@ func (h *testHandler) pushTag(ssh util.SshClient, org, repo, tag string) error {
 	var out bytes.Buffer
 	for _, cmd := range []string{
 		fmt.Sprintf("git clone --depth 1 %s promo", cloneURL),
-		fmt.Sprintf("git -C promo tag %s", tag),
-		fmt.Sprintf("git -C promo push origin %s", tag),
+		fmt.Sprintf("git -C promo tag -f %s", tag),
+		fmt.Sprintf("git -C promo push -f origin %s", tag),
 	} {
 		out.Reset()
 		ctx2m, cancel2m := context.WithTimeout(context.Background(), 2*time.Minute)
